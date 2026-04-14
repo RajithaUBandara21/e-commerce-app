@@ -1,4 +1,12 @@
 package com.rajitha.ecommerce.dto;
 
-public record PurchaseResponseDTO() {
+import java.math.BigDecimal;
+
+public record PurchaseResponseDTO(
+        Integer productId,
+        String name,
+        String description,
+        BigDecimal price,
+        Double quantity
+) {
 }

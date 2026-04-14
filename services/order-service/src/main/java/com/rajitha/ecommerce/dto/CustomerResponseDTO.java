@@ -6,7 +6,7 @@ public record CustomerResponseDTO(
         String id,
         String firstname,
         String lastname,
-        Email email,
-        
+        Email email
+
 ) {
 }

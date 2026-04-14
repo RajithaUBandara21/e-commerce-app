@@ -1,4 +1,4 @@
-package com.rajitha.ecommerce.client;
+package com.rajitha.ecommerce.client.feign;
 
 
 import com.rajitha.ecommerce.dto.CustomerResponseDTO;

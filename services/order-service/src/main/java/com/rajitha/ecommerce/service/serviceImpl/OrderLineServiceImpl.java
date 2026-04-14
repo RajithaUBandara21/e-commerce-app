@@ -1,4 +1,11 @@
 package com.rajitha.ecommerce.service.serviceImpl;
 
-public class OrderLineService {
+import com.rajitha.ecommerce.service.OrderLineService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class OrderLineServiceImpl implements OrderLineService {
+
 }

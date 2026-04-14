@@ -2,10 +2,10 @@ package com.rajitha.ecommerce.mapper;
 
 import com.rajitha.ecommerce.dto.CustomerRequestDTO;
 import com.rajitha.ecommerce.dto.CustomerResponseDTO;
-import com.rajitha.ecommerce.entity.AddressEntity;
+
 import com.rajitha.ecommerce.entity.CustomerEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
+
 
 @Component
 public class CustomerMapper {

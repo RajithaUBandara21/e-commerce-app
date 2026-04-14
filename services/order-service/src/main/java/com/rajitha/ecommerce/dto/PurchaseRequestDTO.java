@@ -1,4 +1,12 @@
 package com.rajitha.ecommerce.dto;
 
-public record PurchaseRequestDTO() {
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
+public record PurchaseRequestDTO(
+        @NotNull(message = "Product is mandetory")
+        Integer productId,
+        @Positive(message = "Quantity is mandetory")
+        double quantity
+) {
 }

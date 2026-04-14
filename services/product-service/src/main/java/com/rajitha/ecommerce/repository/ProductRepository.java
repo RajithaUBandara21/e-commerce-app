@@ -1,4 +1,9 @@
 package com.rajitha.ecommerce.repository;
+import com.rajitha.ecommerce.entity.Product;
+import org.springframework.data.jpa.repository.JpaRepository;
 
-public class CustomerRepository {
+import java.util.List;
+
+public interface ProductRepository extends JpaRepository<Product,Integer>{
+    List<Product> findAllByIdInOrderById(List<Integer> productIds);
 }

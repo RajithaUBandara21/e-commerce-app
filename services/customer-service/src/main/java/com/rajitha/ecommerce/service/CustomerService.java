@@ -1,4 +1,4 @@
-package com.rajitha.ecommerce.serviceImpl;
+package com.rajitha.ecommerce.service;
 
 import com.rajitha.ecommerce.dto.CustomerRequestDTO;
 import com.rajitha.ecommerce.dto.CustomerResponseDTO;
@@ -6,7 +6,7 @@ import jakarta.validation.Valid;
 
 import java.util.List;
 
-public interface CustomerServiceImpl {
+public interface CustomerService {
     public String createCustomer(CustomerRequestDTO customerRequestDTO);
 
     void updateCustomer(@Valid CustomerRequestDTO customerRequestDTO);

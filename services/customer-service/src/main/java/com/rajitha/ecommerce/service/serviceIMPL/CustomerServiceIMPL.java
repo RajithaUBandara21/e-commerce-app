@@ -1,4 +1,4 @@
-package com.rajitha.ecommerce.serviceIMPL;
+package com.rajitha.ecommerce.service.serviceIMPL;
 
 import com.rajitha.ecommerce.dto.CustomerRequestDTO;
 import com.rajitha.ecommerce.dto.CustomerResponseDTO;

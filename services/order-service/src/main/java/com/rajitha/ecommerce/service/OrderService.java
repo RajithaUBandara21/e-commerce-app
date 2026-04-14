@@ -1,8 +1,8 @@
-package com.rajitha.ecommerce.serviceImpl;
+package com.rajitha.ecommerce.service;
 
 import com.rajitha.ecommerce.dto.OrderRequestDTO;
 import jakarta.validation.Valid;
 
-public interface OrderServiceImpl {
+public interface OrderService {
     Integer createOrder(@Valid OrderRequestDTO orderRequestDTO);
 }
