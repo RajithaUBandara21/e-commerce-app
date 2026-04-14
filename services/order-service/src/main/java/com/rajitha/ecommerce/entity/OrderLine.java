@@ -12,7 +12,7 @@ import lombok.*;
 public class OrderLine {
     @jakarta.persistence.Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int Id;
+    private Integer Id;
     @ManyToOne
     @JoinColumn(name = "order_id")
     private Order order;

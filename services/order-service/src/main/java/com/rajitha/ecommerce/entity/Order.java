@@ -23,7 +23,7 @@ import static jakarta.persistence.EnumType.STRING;
 public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int Id;
+    private Integer Id;
 
     private String reference;
 
