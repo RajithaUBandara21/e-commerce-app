@@ -1,84 +1,21 @@
-package com.rajitha.ecommerce.service;
+package com.rajitha.ecommerce.serviceImpl;
 
 import com.rajitha.ecommerce.dto.CustomerRequestDTO;
 import com.rajitha.ecommerce.dto.CustomerResponseDTO;
-import com.rajitha.ecommerce.entity.CustomerEntity;
-import com.rajitha.ecommerce.exeption.CustomerNotFoundException;
-import com.rajitha.ecommerce.mapper.AddressMapper;
-import com.rajitha.ecommerce.repository.CustomerRepository;
-import com.rajitha.ecommerce.serviceImpl.CustomerServiceImpl;
-import com.rajitha.ecommerce.mapper.CustomerMapper;
-import org.springframework.stereotype.Service;
+import jakarta.validation.Valid;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
+public interface CustomerServiceImpl {
+    public String createCustomer(CustomerRequestDTO customerRequestDTO);
 
-@Service
-public class CustomerService implements CustomerServiceImpl {
+    void updateCustomer(@Valid CustomerRequestDTO customerRequestDTO);
 
-    private final CustomerRepository customerRepository;
-    private final CustomerMapper customerMapper;
-    private final AddressMapper addressMapper;
+    List<CustomerResponseDTO> findAllCustomers();
 
-    CustomerService(CustomerRepository customerRepository , CustomerMapper customerMapper, AddressMapper addressMapper ) {
-        this.customerRepository = customerRepository;
-        this.customerMapper = customerMapper;
-        this.addressMapper = addressMapper;
-    }
+    Boolean customerExistById(String customerId);
 
+    CustomerResponseDTO customerFindById(String customerId);
 
-    public String createCustomer(CustomerRequestDTO customerRequestDTO) {
-        var saveResponse = customerRepository.save(customerMapper.toCustomerEntity(customerRequestDTO));
-        return saveResponse.getId() ;
-    }
-
-
-    public void updateCustomer(CustomerRequestDTO customerRequestDTO) {
-        var customerEntity = customerRepository.findById(customerRequestDTO.id()).orElseThrow(() -> new CustomerNotFoundException("Cannot update customer :: Cannot found customer with id " + customerRequestDTO.id()));
-        mergerCustomer(customerEntity , customerRequestDTO);
-        customerRepository.save(customerEntity);
-    }
-
-
-    public List<CustomerResponseDTO> findAllCustomers() {
-        List<CustomerResponseDTO> customerResponseDTO = customerRepository.findAll().stream().map(customerMapper :: toCustomerResponseDTO).collect(Collectors.toList());
-        return customerResponseDTO;
-    }
-
-
-    public Boolean customerExistById(String customerId) {
-        return customerRepository.existsById(customerId);
-
-    }
-
-
-    public CustomerResponseDTO customerFindById(String customerId) {
-
-        return customerMapper.toCustomerResponseDTO(customerRepository.findById(customerId).orElseThrow(() -> new CustomerNotFoundException("Customer not found with id " + customerId))) ;
-    }
-
-
-    public void customerdeleteById(String customerId) {
-        if (!customerRepository.existsById(customerId)) {
-            throw new CustomerNotFoundException("Customer not found for delete" + customerId);
-        }
-       customerRepository.deleteById(customerId);
-    }
-
-    private void mergerCustomer(CustomerEntity customerEntity , CustomerRequestDTO customerRequestDTO) {
-        if(customerRequestDTO.firstName() != null && !customerRequestDTO.firstName().isBlank()){
-            customerEntity.setFirstName(customerRequestDTO.firstName());
-        };
-        if(customerRequestDTO.lastName() != null && !customerRequestDTO.lastName().isBlank()){
-            customerEntity.setLastName(customerRequestDTO.lastName());
-        };
-        if(customerRequestDTO.email() != null && !customerRequestDTO.email().isBlank()){
-            customerEntity.setEmail(customerRequestDTO.email());
-        };
-        if(customerRequestDTO.address() != null ){
-            customerEntity.setAddress(addressMapper.toAddressEntity(customerRequestDTO.address()));
-        };
-    }
+    void customerdeleteById(String customerId);
 }
-
