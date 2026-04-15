@@ -1,19 +1,18 @@
 package com.rajitha.ecommerce.service.serviceImpl;
-
 import com.rajitha.ecommerce.client.feign.CustomerClient;
 import com.rajitha.ecommerce.client.rest.ProductClient;
-import com.rajitha.ecommerce.dto.OrderConformationDTO;
-import com.rajitha.ecommerce.dto.OrderLineRequestDTO;
-import com.rajitha.ecommerce.dto.OrderRequestDTO;
-import com.rajitha.ecommerce.dto.PurchaseRequestDTO;
+import com.rajitha.ecommerce.dto.*;
 import com.rajitha.ecommerce.kafka.OrderProducer;
 import com.rajitha.ecommerce.mapper.OrderMapper;
 import com.rajitha.ecommerce.repository.OrderRepository;
 import com.rajitha.ecommerce.service.OrderLineService;
 import com.rajitha.ecommerce.service.OrderService;
 import com.rajitha.ecommerce.exception.BusinessException;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -62,5 +61,15 @@ public class OrderServiceImpl implements OrderService {
                 .build()
         );
         return order.getId();
+    }
+
+    @Override
+    public List<OrderResponseDTO> findAllOderResponses() {
+        return orderRepository.findAll().stream().map(orderMapper::toOrderResponseDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public OrderResponseDTO getOderById(Integer orderId) {
+        return orderRepository.findById(orderId).map(orderMapper::toOrderResponseDTO).orElseThrow( () -> new EntityNotFoundException("Order not found :: for oder id: " + orderId));
     }
 }

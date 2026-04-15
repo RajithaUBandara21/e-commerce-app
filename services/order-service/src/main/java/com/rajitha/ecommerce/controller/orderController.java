@@ -1,14 +1,14 @@
 package com.rajitha.ecommerce.controller;
 
 import com.rajitha.ecommerce.dto.OrderRequestDTO;
+import com.rajitha.ecommerce.dto.OrderResponseDTO;
 import com.rajitha.ecommerce.service.serviceImpl.OrderServiceImpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -22,4 +22,13 @@ public class orderController {
     return ResponseEntity.ok(orderService.createOrder(orderRequestDTO));
     }
 
+    @GetMapping
+    public ResponseEntity<List<OrderResponseDTO>> findAllResponses(){
+        return ResponseEntity.ok(orderService.findAllOderResponses());
+    }
+
+    @GetMapping("/{order-id}")
+    public ResponseEntity<OrderResponseDTO> findOrderById(@PathVariable("order-id") Integer orderId){
+        return ResponseEntity.ok(orderService.getOderById(orderId));
+    }
 }

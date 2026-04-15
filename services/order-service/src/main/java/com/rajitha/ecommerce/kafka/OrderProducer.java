@@ -18,7 +18,8 @@ public class OrderProducer  {
 
     public void sendOrderConformation(  OrderConformationDTO orderConformationDTO){
     log.info("Sending order conformation : {}", orderConformationDTO);
-        Message<OrderConformationDTO> message = MessageBuilder.withPayload(orderConformationDTO)
+        Message<OrderConformationDTO> message = MessageBuilder
+                .withPayload(orderConformationDTO)
                 .setHeader(KafkaHeaders.TOPIC, "order-topic")
                 .build();
         kafkaTemplate.send(message);
