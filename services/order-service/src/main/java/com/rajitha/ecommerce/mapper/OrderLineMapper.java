@@ -4,10 +4,6 @@ import com.rajitha.ecommerce.dto.OrderLineRequestDTO;
 import com.rajitha.ecommerce.dto.OrderLineResponseDTO;
 import com.rajitha.ecommerce.entity.Order;
 import com.rajitha.ecommerce.entity.OrderLine;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import org.springframework.stereotype.Component;
 
 @Component

@@ -1,0 +1,40 @@
+spring:
+  data:
+    mongodb:
+      username: rajitha
+      password: rajitha
+      host: localhost
+      port: 27017
+      database: customer
+      authentication-database: admin
+
+  kafka:
+    consumer:
+      bootstrap-servers: localhost:9092
+      group-id: paymentGroup,orderGroup
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+
+    properties:
+      spring.json.trusted.packages: '*'
+      spring.json.type.mapping: orderConformationDTO:com.rajitha.ecommerce.dto.OrderConformationDTO,PaymentNotificationRequestDTO:com.rajitha.ecommerce.dto.PaymentNotificationRequestDTO
+
+  mail:
+    host: localhost
+    port: 1025
+    username: rajitha
+    password: rajitha
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 3000
+          writetimeout: 5000
+          trust: "*"
+
+server:
+  port: 8040

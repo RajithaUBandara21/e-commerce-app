@@ -2,7 +2,7 @@ package com.rajitha.ecommerce.service.serviceIMPL;
 
 import com.rajitha.ecommerce.dto.CustomerRequestDTO;
 import com.rajitha.ecommerce.dto.CustomerResponseDTO;
-import com.rajitha.ecommerce.entity.CustomerEntity;
+import com.rajitha.ecommerce.document.CustomerDocument;
 import com.rajitha.ecommerce.exeption.CustomerNotFoundException;
 import com.rajitha.ecommerce.mapper.AddressMapper;
 import com.rajitha.ecommerce.repository.CustomerRepository;
@@ -66,18 +66,18 @@ public class CustomerServiceIMPL implements CustomerService {
        customerRepository.deleteById(customerId);
     }
 
-    private void mergerCustomer(CustomerEntity customerEntity , CustomerRequestDTO customerRequestDTO) {
+    private void mergerCustomer(CustomerDocument customerDocument, CustomerRequestDTO customerRequestDTO) {
         if(customerRequestDTO.firstName() != null && !customerRequestDTO.firstName().isBlank()){
-            customerEntity.setFirstName(customerRequestDTO.firstName());
+            customerDocument.setFirstName(customerRequestDTO.firstName());
         };
         if(customerRequestDTO.lastName() != null && !customerRequestDTO.lastName().isBlank()){
-            customerEntity.setLastName(customerRequestDTO.lastName());
+            customerDocument.setLastName(customerRequestDTO.lastName());
         };
         if(customerRequestDTO.email() != null && !customerRequestDTO.email().isBlank()){
-            customerEntity.setEmail(customerRequestDTO.email());
+            customerDocument.setEmail(customerRequestDTO.email());
         };
         if(customerRequestDTO.address() != null ){
-            customerEntity.setAddress(addressMapper.toAddressEntity(customerRequestDTO.address()));
+            customerDocument.setAddress(addressMapper.toAddressEntity(customerRequestDTO.address()));
         };
     }
 }

@@ -1,5 +1,6 @@
 package com.rajitha.ecommerce.service.serviceImpl;
 import com.rajitha.ecommerce.client.feign.CustomerClient;
+import com.rajitha.ecommerce.client.feign.PaymentClient;
 import com.rajitha.ecommerce.client.rest.ProductClient;
 import com.rajitha.ecommerce.dto.*;
 import com.rajitha.ecommerce.messaging.OrderProducer;
@@ -24,7 +25,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderLineService orderLineService;
     private final OrderProducer orderProducer;
-
+    private final PaymentClient paymentClient;
     @Override
     public Integer createOrder(OrderRequestDTO orderRequestDTO) {
 //        check the customer -> OpenFeign
@@ -48,8 +49,16 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 //        Start payment process
+var paymentRequestDTO = new PaymentRequestDTO(
 
+        orderRequestDTO.totalAmount(),
+        orderRequestDTO.paymentMethode(),
+        orderRequestDTO.id(),
+        orderRequestDTO.reference(),
+        customer
 
+);
+paymentClient.requestOrderPayment(paymentRequestDTO);
 //        send the order conform  --> notification-ms(kafka)
         orderProducer.sendOrderConformation( OrderConformationDTO.builder()
                         .orderReference(orderRequestDTO.reference())

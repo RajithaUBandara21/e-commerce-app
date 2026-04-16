@@ -1,7 +1,5 @@
 package com.rajitha.ecommerce.dto;
 
-import com.rajitha.ecommerce.entity.Category;
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 

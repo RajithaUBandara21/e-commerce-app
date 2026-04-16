@@ -1,4 +1,4 @@
-package com.rajitha.ecommerce.entity;
+package com.rajitha.ecommerce.document;
 
 import lombok.*;
 import org.springframework.data.annotation.Id;
@@ -11,12 +11,12 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Getter
 @Setter
 @Document
-public class CustomerEntity {
+public class CustomerDocument {
     @Id
     private String id;
     private String firstName;
     private String lastName;
     private String email;
-    private AddressEntity address;
+    private AddressDocument address;
 
 }

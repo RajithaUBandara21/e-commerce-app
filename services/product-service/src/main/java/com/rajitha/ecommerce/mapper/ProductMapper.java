@@ -5,8 +5,6 @@ import com.rajitha.ecommerce.dto.ProductRequestDTO;
 import com.rajitha.ecommerce.dto.ProductResponseDTO;
 import com.rajitha.ecommerce.entity.Category;
 import com.rajitha.ecommerce.entity.Product;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import org.springframework.stereotype.Component;
 
 @Component

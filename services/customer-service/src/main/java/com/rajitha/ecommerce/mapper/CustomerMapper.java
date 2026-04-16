@@ -3,7 +3,7 @@ package com.rajitha.ecommerce.mapper;
 import com.rajitha.ecommerce.dto.CustomerRequestDTO;
 import com.rajitha.ecommerce.dto.CustomerResponseDTO;
 
-import com.rajitha.ecommerce.entity.CustomerEntity;
+import com.rajitha.ecommerce.document.CustomerDocument;
 import org.springframework.stereotype.Component;
 
 
@@ -15,12 +15,12 @@ private final AddressMapper addressMapper;
 CustomerMapper(AddressMapper addressMapper) {
     this.addressMapper = addressMapper;
 }
-    public CustomerEntity toCustomerEntity(CustomerRequestDTO customerDTO) {
+    public CustomerDocument toCustomerEntity(CustomerRequestDTO customerDTO) {
 
         if (customerDTO == null) {
             return null;
         }
-        return CustomerEntity.builder()
+        return CustomerDocument.builder()
                 .id(customerDTO.id())
                 .firstName(customerDTO.firstName())
                 .lastName(customerDTO.lastName())
@@ -29,9 +29,9 @@ CustomerMapper(AddressMapper addressMapper) {
                 .build();
     }
 
-    public CustomerResponseDTO toCustomerResponseDTO(CustomerEntity customerEntity) {
-    if (customerEntity == null) {return null;}
-    return new CustomerResponseDTO(customerEntity.getId(),customerEntity.getFirstName(),customerEntity.getLastName(),customerEntity.getEmail(),addressMapper.toAddressDTO(customerEntity.getAddress()));
+    public CustomerResponseDTO toCustomerResponseDTO(CustomerDocument customerDocument) {
+    if (customerDocument == null) {return null;}
+    return new CustomerResponseDTO(customerDocument.getId(), customerDocument.getFirstName(), customerDocument.getLastName(), customerDocument.getEmail(),addressMapper.toAddressDTO(customerDocument.getAddress()));
     }
 
 }

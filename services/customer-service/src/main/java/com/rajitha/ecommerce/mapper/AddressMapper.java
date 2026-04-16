@@ -1,17 +1,17 @@
 package com.rajitha.ecommerce.mapper;
 
 import com.rajitha.ecommerce.dto.AddressDTO;
-import com.rajitha.ecommerce.entity.AddressEntity;
+import com.rajitha.ecommerce.document.AddressDocument;
 import org.springframework.stereotype.Component;
 
 @Component
 public class AddressMapper {
 
-    public AddressEntity toAddressEntity(AddressDTO addressDTO) {
+    public AddressDocument toAddressEntity(AddressDTO addressDTO) {
     if (addressDTO == null) {
         return null;
     }
-    return  AddressEntity.builder()
+    return  AddressDocument.builder()
                 .street(addressDTO.street())
                 .houseNumber(addressDTO.houseNumber())
                 .zipCode(addressDTO.zipCode())
@@ -20,12 +20,12 @@ public class AddressMapper {
 
     }
 
-    public AddressDTO toAddressDTO(AddressEntity addressEntity) {
-        if (addressEntity == null) {
+    public AddressDTO toAddressDTO(AddressDocument addressDocument) {
+        if (addressDocument == null) {
             return null;
         }
 
-        return new AddressDTO(addressEntity.getHouseNumber(), addressEntity.getZipCode(), addressEntity.getHouseNumber());
+        return new AddressDTO(addressDocument.getHouseNumber(), addressDocument.getZipCode(), addressDocument.getHouseNumber());
 
     }
 }

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Order Confirmation</title>
+</head>
+
+<body style="font-family: Arial; padding: 20px;">
+
+<h2>Order Confirmed 🛍️</h2>
+
+<p>Hi <b th:text="${customerName}">Name</b>,</p>
+
+<p>Thanks for your order!</p>
+
+<hr>
+
+<p>
+    <b>Order Reference:</b>
+    <span th:text="${orderReference}">REF123</span>
+</p>
+
+<p>
+    <b>Total Amount:</b>
+    <span th:text="${totalAmount}">0.00</span> USD
+</p>
+
+<hr>
+
+<h3>Products</h3>
+
+<table border="1" cellpadding="8" cellspacing="0" width="100%">
+    <thead>
+    <tr>
+        <th>Product</th>
+        <th>Price</th>
+        <th>Quantity</th>
+        <th>Total</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    <tr th:each="product : ${products}">
+        <td th:text="${product.name}">Sample</td>
+        <td th:text="${product.price}">0</td>
+        <td th:text="${product.quantity}">1</td>
+
+        <!-- calculated field -->
+        <td th:text="${product.price * product.quantity}">0</td>
+    </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<p>We will notify you when your order ships.</p>
+
+</body>
+</html>

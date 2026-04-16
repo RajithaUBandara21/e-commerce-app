@@ -1,6 +1,5 @@
 package com.rajitha.ecommerce.dto;
 import com.rajitha.ecommerce.enums.PaymentMethode;
-import jakarta.validation.constraints.Email;
 import lombok.Builder;
 
 import java.math.BigDecimal;
@@ -12,6 +11,6 @@ public record PaymentNotificationRequestDTO(
         PaymentMethode  paymentMethode,
         String customerFirstName,
         String customerLastName,
-        Email customerEmail
+        String customerEmail
 ) {
 }

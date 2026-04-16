@@ -1,4 +1,4 @@
-package com.rajitha.ecommerce.entity;
+package com.rajitha.ecommerce.document;
 
 import lombok.*;
 import org.springframework.validation.annotation.Validated;
@@ -9,7 +9,7 @@ import org.springframework.validation.annotation.Validated;
 @Getter
 @Setter
 @Validated
-public class AddressEntity {
+public class AddressDocument {
     private String street;
     private String houseNumber;
     private String zipCode;
