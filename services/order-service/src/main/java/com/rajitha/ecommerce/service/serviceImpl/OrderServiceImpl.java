@@ -2,7 +2,7 @@ package com.rajitha.ecommerce.service.serviceImpl;
 import com.rajitha.ecommerce.client.feign.CustomerClient;
 import com.rajitha.ecommerce.client.rest.ProductClient;
 import com.rajitha.ecommerce.dto.*;
-import com.rajitha.ecommerce.kafka.OrderProducer;
+import com.rajitha.ecommerce.messaging.OrderProducer;
 import com.rajitha.ecommerce.mapper.OrderMapper;
 import com.rajitha.ecommerce.repository.OrderRepository;
 import com.rajitha.ecommerce.service.OrderLineService;

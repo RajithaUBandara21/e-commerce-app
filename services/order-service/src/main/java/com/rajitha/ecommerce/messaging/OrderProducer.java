@@ -1,4 +1,4 @@
-package com.rajitha.ecommerce.kafka;
+package com.rajitha.ecommerce.messaging;
 
 import com.rajitha.ecommerce.dto.OrderConformationDTO;
 import lombok.RequiredArgsConstructor;
