@@ -60,7 +60,7 @@ var paymentRequestDTO = new PaymentRequestDTO(
 );
 paymentClient.requestOrderPayment(paymentRequestDTO);
 //        send the order conform  --> notification-ms(kafka)
-        orderProducer.sendOrderConformation( OrderConformationDTO.builder()
+        orderProducer.sendOrderConformation( OrderConfirmationDTO.builder()
                         .orderReference(orderRequestDTO.reference())
                         .customerResponseDTO(customer)
                         .totalAmount(orderRequestDTO.totalAmount())

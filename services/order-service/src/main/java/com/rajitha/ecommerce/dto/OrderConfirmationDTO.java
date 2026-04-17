@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Builder
-public record OrderConformationDTO(
+public record OrderConfirmationDTO(
         String orderReference,
         BigDecimal totalAmount,
         PaymentMethode paymentMethode,

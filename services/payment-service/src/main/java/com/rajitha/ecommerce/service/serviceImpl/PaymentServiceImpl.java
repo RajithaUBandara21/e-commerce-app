@@ -6,8 +6,10 @@ import com.rajitha.ecommerce.messaging.PaymentNotificationProducer;
 import com.rajitha.ecommerce.service.PaymentService;
 import com.rajitha.ecommerce.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
 @RequiredArgsConstructor
+@Service
 public class PaymentServiceImpl implements PaymentService {
 
  private final PaymentRepository paymentRepository;
@@ -26,6 +28,6 @@ public class PaymentServiceImpl implements PaymentService {
                         .customerLastName(paymentRequestDTO.customerDTO().lastName())
                         .build()
         );
-        return 1;
+        return payment.getId();
     }
 }

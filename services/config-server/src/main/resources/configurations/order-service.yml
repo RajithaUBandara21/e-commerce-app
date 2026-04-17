@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/order
+    url: jdbc:postgresql://localhost:5432/order_db
     username: rajitha
     password: rajitha
     driver-class-name: org.postgresql.Driver
@@ -13,7 +13,7 @@ spring:
     producer:
       bootstrap-servers: localhost:9092
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springFramework.kafka.support.serializer.jsonSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.type.mapping: orderConformationDTO:com.rajitha.ecommerce.dto.OrderConformationDTO
 server:
@@ -24,4 +24,4 @@ application:
   config:
     customer-url: http://localhost:8222/api/v1/customers
     product-url: http://localhost:8222/api/v1/products
-    payment-url: http://localhost:8222  /api/v1/payment
+    payment-url: http://localhost:8222/api/v1/payment

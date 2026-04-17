@@ -1,6 +1,7 @@
 package com.rajitha.ecommerce.service.serviceImpl;
 import com.rajitha.ecommerce.dto.ProductDTO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import org.thymeleaf.context.Context;
 import com.rajitha.ecommerce.service.EmailService;
 import jakarta.mail.MessagingException;
@@ -20,6 +21,7 @@ import static com.rajitha.ecommerce.enums.EmailTemplates.ORDER_CONFORMATIONS;
 import static com.rajitha.ecommerce.enums.EmailTemplates.PAYMENT_CONFORMATIONS;
 
 @Slf4j
+@Service
 @RequiredArgsConstructor
 public class EmailServiceImpl implements EmailService {
 
