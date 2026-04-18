@@ -21,7 +21,8 @@ public class OrderLineServiceImpl implements OrderLineService {
 
     @Override
     public Integer saveOrderLine(OrderLineRequestDTO orderLineRequest) {
-    var order =  orderLineMapper.toOrderLine(orderLineRequest);
+
+    var order =  orderLineRepository.save(orderLineMapper.toOrderLine(orderLineRequest));
     return order.getId();
     }
 

@@ -15,7 +15,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        spring.json.type.mapping: orderConformationDTO:com.rajitha.ecommerce.dto.OrderConformationDTO
+        spring.json.type.mapping: orderConfirmationDTO:com.rajitha.ecommerce.dto.OrderConfirmationDTO
 server:
   port: 8070
 
@@ -24,4 +24,4 @@ application:
   config:
     customer-url: http://localhost:8222/api/v1/customers
     product-url: http://localhost:8222/api/v1/products
-    payment-url: http://localhost:8222/api/v1/payment
+    payment-url: http://localhost:8222/api/v1/payments

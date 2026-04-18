@@ -18,14 +18,15 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public Integer createPayment(PaymentRequestDTO paymentRequestDTO) {
         var payment = paymentRepository.save(paymentMapper.toPayment(paymentRequestDTO));
+
         paymentNotificationProducer.sendNotification(
                 PaymentNotificationRequestDTO.builder()
                         .orderReference(paymentRequestDTO.orderReference())
                         .amount(paymentRequestDTO.amount())
                         .paymentMethode(paymentRequestDTO.paymentMethode())
-                        .customerEmail(paymentRequestDTO.customerDTO().email())
-                        .customerFirstName(paymentRequestDTO.customerDTO().firstName())
-                        .customerLastName(paymentRequestDTO.customerDTO().lastName())
+                        .customerEmail(paymentRequestDTO.customer().email())
+                        .customerFirstName(paymentRequestDTO.customer().firstName())
+                        .customerLastName(paymentRequestDTO.customer().lastName())
                         .build()
         );
         return payment.getId();

@@ -12,6 +12,6 @@ public record PaymentNotificationRequestDTO(
         PaymentMethode  paymentMethode,
         String customerFirstName,
         String customerLastName,
-        Email customerEmail
+        String customerEmail
 ) {
 }

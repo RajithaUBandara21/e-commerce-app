@@ -7,4 +7,5 @@ public record CustomerResponseDTO(
         String firstName,
         String lastName,
         String email,
-        AddressDTO address) {}
+        AddressDTO address
+) {}

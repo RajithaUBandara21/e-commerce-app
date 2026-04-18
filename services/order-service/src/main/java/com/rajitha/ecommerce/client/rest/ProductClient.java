@@ -25,8 +25,6 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 
 @Component
-
-
 @RequiredArgsConstructor
 public class ProductClient {
 

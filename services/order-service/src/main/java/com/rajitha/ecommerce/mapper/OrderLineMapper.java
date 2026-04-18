@@ -11,7 +11,6 @@ public class OrderLineMapper {
 
     public OrderLine toOrderLine(OrderLineRequestDTO orderLineRequest) {
         return OrderLine.builder().
-
           Id(orderLineRequest.id()).
           order(Order.builder().Id(orderLineRequest.orderId()).build()).
           productId(orderLineRequest.productId()).

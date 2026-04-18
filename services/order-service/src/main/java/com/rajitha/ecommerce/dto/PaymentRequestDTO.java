@@ -1,4 +1,5 @@
 package com.rajitha.ecommerce.dto;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.rajitha.ecommerce.enums.PaymentMethode;
 
 
@@ -10,6 +11,7 @@ public record PaymentRequestDTO(
         PaymentMethode paymentMethode,
         Integer orderId,
         String orderReference,
-        CustomerResponseDTO customerResponseDTO
+        @JsonProperty("customer")
+        CustomerResponseDTO customer
 ) {
 }

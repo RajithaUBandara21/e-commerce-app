@@ -13,6 +13,7 @@ public record CustomerDTO(
         String lastName,
         @NotNull(message = "Email is required")
         @Email(message = "The customer not correctly formated in Email")
-        Email email
+        String email,
+        AddressDTO address
 ) {
 }
