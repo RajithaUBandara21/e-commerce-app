@@ -1,6 +1,6 @@
 package com.rajitha.ecommerce.enums;
 
-public enum PaymentMethod {
+public enum PaymentMethode {
     PAYPAL,
     CREDIT_CARD,
     VISA,

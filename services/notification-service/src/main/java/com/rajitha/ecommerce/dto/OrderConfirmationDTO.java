@@ -1,13 +1,17 @@
 package com.rajitha.ecommerce.dto;
-import com.rajitha.ecommerce.enums.PaymentMethod;
+import com.rajitha.ecommerce.enums.PaymentMethode;
+import lombok.Builder;
+
 import java.math.BigDecimal;
 import java.util.List;
 
+@Builder
 public record OrderConfirmationDTO(
         String orderReference,
         BigDecimal totalAmount,
-        PaymentMethod paymentMethode,
-        CustomerDTO customerResponseDTO,
-        List<ProductDTO> products
+        PaymentMethode paymentMethode,
+        CustomerResponseDTO customerResponseDTO,
+        List<PurchaseResponseDTO> products
+
 ) {
 }

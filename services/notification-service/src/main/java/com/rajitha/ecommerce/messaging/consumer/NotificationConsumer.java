@@ -55,11 +55,13 @@ public class NotificationConsumer {
 
     //Send Email
         var customerName = orderConfirmationDTO.customerResponseDTO().firstName() + " " + orderConfirmationDTO.customerResponseDTO().lastName();
-        emailService.sendPaymentSuccessEmail(
+        emailService.sendOrderConformationEmail(
                 orderConfirmationDTO.customerResponseDTO().email(),
                 customerName,
                 orderConfirmationDTO.totalAmount(),
-                orderConfirmationDTO.orderReference()
+                orderConfirmationDTO.orderReference(),
+                orderConfirmationDTO.products()
+
 
         );
 

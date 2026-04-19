@@ -1,9 +1,10 @@
 package com.rajitha.ecommerce.dto;
 
-public record CustomerDTO(
+public record CustomerResponseDTO(
         String id,
         String firstName,
         String lastName,
-        String  email
+        String email,
+        AddressDTO address
 ) {
 }

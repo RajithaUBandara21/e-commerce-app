@@ -18,7 +18,7 @@ spring:
 
     properties:
       spring.json.trusted.packages: '*'
-      spring.json.type.mapping: OrderConfirmationDTO:com.rajitha.ecommerce.dto.OrderConfirmationDTO,PaymentNotificationRequestDTO:com.rajitha.ecommerce.dto.PaymentConfirmationDTO
+      spring.json.type.mapping: OrderConfirmationDTO:com.rajitha.ecommerce.dto.OrderConfirmationDTO,orderConfirmationDTO:com.rajitha.ecommerce.dto.OrderConfirmationDTO,PaymentNotificationRequestDTO:com.rajitha.ecommerce.dto.PaymentConfirmationDTO,paymentNotificationRequestDTO:com.rajitha.ecommerce.dto.PaymentConfirmationDTO
 
   mail:
     host: localhost

@@ -15,7 +15,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        spring.json.type.mapping: orderConfirmationDTO:com.rajitha.ecommerce.dto.OrderConfirmationDTO
+        spring.json.type.mapping: OrderConfirmationDTO:com.rajitha.ecommerce.dto.OrderConfirmationDTO
 server:
   port: 8070
 

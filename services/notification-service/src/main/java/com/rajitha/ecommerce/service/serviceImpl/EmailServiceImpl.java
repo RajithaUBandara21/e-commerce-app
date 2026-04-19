@@ -1,5 +1,6 @@
 package com.rajitha.ecommerce.service.serviceImpl;
 import com.rajitha.ecommerce.dto.ProductDTO;
+import com.rajitha.ecommerce.dto.PurchaseResponseDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.context.Context;
@@ -64,7 +65,7 @@ public class EmailServiceImpl implements EmailService {
 
     @Async
     @Override
-    public void sendOrderConformationEmail(String destinationEmail, String customerName, BigDecimal amount, String orderReference, List<ProductDTO> products) throws MessagingException {
+    public void sendOrderConformationEmail(String destinationEmail, String customerName, BigDecimal amount, String orderReference, List<PurchaseResponseDTO> products) throws MessagingException {
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage, MimeMessageHelper.MULTIPART_MODE_MIXED, StandardCharsets.UTF_8.name());
         messageHelper.setFrom("kgrubandara@gmail.com");

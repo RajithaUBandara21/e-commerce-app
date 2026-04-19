@@ -72,7 +72,7 @@ services:
     container_name: ms_mail_dev
     image: maildev/maildev
     ports:
-      - 1080:1080
+      - 10081:1080
       - 1025:1025
   kafka:
     image: confluentinc/cp-kafka:7.5.0
