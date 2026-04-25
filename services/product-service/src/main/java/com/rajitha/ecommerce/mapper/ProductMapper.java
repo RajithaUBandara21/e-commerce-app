@@ -10,6 +10,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProductMapper {
     public Product toProductEntity(ProductRequestDTO productRequestDTO) {
+
+        if (productRequestDTO == null) {
+            throw new NullPointerException("productRequestDTO is null");
+        }
         return Product.builder()
                 .id(productRequestDTO.id())
                 .name(productRequestDTO.name())
@@ -21,7 +25,11 @@ public class ProductMapper {
 
 }
 
-    public ProductResponseDTO toProductResponceDTO(Product product) {
+    public ProductResponseDTO toProductResponseDTO(Product product) {
+
+        if (product == null) {
+            throw new NullPointerException("Product is null");
+        }
         return new ProductResponseDTO(
                 product.getId(),
                 product.getName(),
@@ -35,6 +43,13 @@ public class ProductMapper {
     }
 
     public ProductPurchaseResponseDTO toProductPurchaseResponseDTO(Product product,double productQuantity) {
+
+        if (product == null ) {
+            throw new NullPointerException("Product is null");
+        }
+        if (productQuantity <= 0) {
+            throw new IllegalArgumentException("Product quantity must be greater than 0");
+        }
         return new ProductPurchaseResponseDTO(
                 product.getId(),
                 product.getName(),
