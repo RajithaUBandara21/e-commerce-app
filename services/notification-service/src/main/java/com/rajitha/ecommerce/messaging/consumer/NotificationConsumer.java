@@ -61,8 +61,6 @@ public class NotificationConsumer {
                 orderConfirmationDTO.totalAmount(),
                 orderConfirmationDTO.orderReference(),
                 orderConfirmationDTO.products()
-
-
         );
 
 

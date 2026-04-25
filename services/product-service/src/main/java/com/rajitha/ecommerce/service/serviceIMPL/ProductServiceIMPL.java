@@ -1,4 +1,4 @@
-package com.rajitha.ecommerce.serviceIMPL;
+package com.rajitha.ecommerce.service.serviceIMPL;
 
 import com.rajitha.ecommerce.dto.ProductPurchaseResponseDTO;
 import com.rajitha.ecommerce.dto.ProductRequestDTO;
@@ -68,11 +68,11 @@ public class ProductServiceIMPL implements ProductService {
 
     @Override
     public ProductResponseDTO findProductById(Integer productId) {
-        return productRepository.findById(productId).map(productMapper::toProductResponceDTO).orElseThrow(()-> new EntityNotFoundException("Product not found" + productId));
+        return productRepository.findById(productId).map(productMapper::toProductResponseDTO).orElseThrow(()-> new EntityNotFoundException("Product not found" + productId));
     }
 
     @Override
     public List<ProductResponseDTO> findAllProduct() {
-        return productRepository.findAll().stream().map(productMapper::toProductResponceDTO).collect(Collectors.toList());
+        return productRepository.findAll().stream().map(productMapper::toProductResponseDTO).collect(Collectors.toList());
     }
 }
