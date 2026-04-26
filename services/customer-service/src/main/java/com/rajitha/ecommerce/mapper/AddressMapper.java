@@ -25,7 +25,7 @@ public class AddressMapper {
             return null;
         }
 
-        return new AddressDTO(addressDocument.getHouseNumber(), addressDocument.getZipCode(), addressDocument.getHouseNumber());
+        return new AddressDTO( addressDocument.getStreet(),addressDocument.getHouseNumber(), addressDocument.getZipCode());
 
     }
 }
