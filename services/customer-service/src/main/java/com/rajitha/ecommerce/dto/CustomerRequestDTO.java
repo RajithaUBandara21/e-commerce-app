@@ -2,9 +2,10 @@ package com.rajitha.ecommerce.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
+import lombok.Builder;
 
 
-
+@Builder
 public record CustomerRequestDTO(
         String id,
         @NotNull(message = "Customer first name required")

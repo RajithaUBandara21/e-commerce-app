@@ -38,19 +38,24 @@ public class ProductServiceIMPL implements ProductService {
     public List<ProductPurchaseResponseDTO> purchaseProductService(List<PurchaseRequestDTO> purchaseRequestDTO) {
 
         var productIds = purchaseRequestDTO.stream().map(PurchaseRequestDTO :: productId).toList();
-        var sortedProduct  = productRepository.findAllByIdInOrderById(productIds);
+
+            var sortedProduct  = productRepository.findAllByIdInOrderById(productIds);
 
 
         if(productIds.size() != sortedProduct.size()){
             throw new ProductPurchaseException("One or more product not exists");
         }
+
         var sortedRequest = purchaseRequestDTO.stream().sorted(Comparator.comparing(PurchaseRequestDTO::productId)).toList();
+
         var purchasedProducts = new ArrayList<ProductPurchaseResponseDTO>();
+
+
         for (int i = 0 ; i < sortedProduct.size() ; i++){
             var product = sortedProduct.get(i);
             var productRequest  = sortedRequest.get(i);
             if (product.getAvailableQuantity() < productRequest.quantity()){
-                throw new ProductPurchaseException("Insufficient stock quantity for product with id "+product.getId());
+                throw new ProductPurchaseException("Insufficient stock quantity for product with id"+product.getId());
             }
             var newAvailableQuantity = product.getAvailableQuantity() - productRequest.quantity();
             product.setAvailableQuantity(newAvailableQuantity);

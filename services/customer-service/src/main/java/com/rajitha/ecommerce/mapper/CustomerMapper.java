@@ -31,7 +31,12 @@ CustomerMapper(AddressMapper addressMapper) {
 
     public CustomerResponseDTO toCustomerResponseDTO(CustomerDocument customerDocument) {
     if (customerDocument == null) {return null;}
-    return new CustomerResponseDTO(customerDocument.getId(), customerDocument.getFirstName(), customerDocument.getLastName(), customerDocument.getEmail(),addressMapper.toAddressDTO(customerDocument.getAddress()));
+    return new CustomerResponseDTO(
+            customerDocument.getId(),
+            customerDocument.getFirstName(),
+            customerDocument.getLastName(),
+            customerDocument.getEmail(),
+            addressMapper.toAddressDTO(customerDocument.getAddress()));
     }
 
 }
