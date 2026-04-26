@@ -1,7 +1,9 @@
 package com.rajitha.ecommerce.dto;
 
-import java.math.BigDecimal;
+import lombok.Builder;
 
+import java.math.BigDecimal;
+@Builder
 public record PurchaseResponseDTO(
         Integer productId,
         String name,

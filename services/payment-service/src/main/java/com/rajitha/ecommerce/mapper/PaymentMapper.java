@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 public class PaymentMapper { 
 
 
-    public Payment toPayment(PaymentRequestDTO paymentRequestDTO) {
+        public Payment toPayment(PaymentRequestDTO paymentRequestDTO) {
         return Payment.builder()
                 .paymentMethode(paymentRequestDTO.paymentMethode())
                 .amount(paymentRequestDTO.amount())

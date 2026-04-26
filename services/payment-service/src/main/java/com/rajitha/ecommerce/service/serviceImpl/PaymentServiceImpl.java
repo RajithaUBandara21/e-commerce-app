@@ -17,6 +17,8 @@ public class PaymentServiceImpl implements PaymentService {
  private final PaymentNotificationProducer paymentNotificationProducer;
     @Override
     public Integer createPayment(PaymentRequestDTO paymentRequestDTO) {
+
+
         var payment = paymentRepository.save(paymentMapper.toPayment(paymentRequestDTO));
 
         paymentNotificationProducer.sendNotification(
