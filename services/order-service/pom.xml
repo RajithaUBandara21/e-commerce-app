@@ -160,4 +160,18 @@
 		</plugins>
 	</build>
 
+
+	<distributionManagement>
+    <repository>
+        <id>maven-releases</id>
+        <name>Release</name>
+        <url>http://13.63.19.52:8081/nexus/content/repositories/releases/</url>
+    </repository>
+
+    <snapshotRepository>
+        <id>maven-snapshots</id>
+        <name>Snapshots</name>
+        <url>http://13.63.19.52:8081/nexus/content/repositories/snapshots/</url>
+    </snapshotRepository>
+</distributionManagement>
 </project>
