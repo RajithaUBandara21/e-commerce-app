@@ -1,4 +1,4 @@
-@Library('shared-lib') _
+@Library('shared-lib@main') _
 
 call(
     serviceName: 'config-server',
