@@ -1,6 +1,6 @@
 @Library('shared-lib@main') _
 
-call(
+buildService(
     serviceName: 'config-server',
-    subPath: 'service/config-server'
+    subPath: 'services/config-server' 
 )
