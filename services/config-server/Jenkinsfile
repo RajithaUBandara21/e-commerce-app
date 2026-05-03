@@ -2,5 +2,6 @@
 
 buildService(
     serviceName: 'config-server',
-    subPath: 'services/config-server' 
+    subPath: 'services/config-server'
+    dockerUser: "rajithaubandara"
 )
