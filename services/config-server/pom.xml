@@ -56,13 +56,13 @@
 	</dependencyManagement>
 	<distributionManagement>
 		<repository>
-			<id>Releases</id>
-			<url>http://13.50.240.15:8081/repository/Releases/</url>
+			<id>releases</id>
+			<url>http://13.50.240.15:8081/nexus/content/repositories/releases</url>
 		</repository>
 
 		<snapshotRepository>
-			<id>Snapshots</id>
-			<url>http://13.50.240.15:8081/repository/Snapshots/</url>
+			<id>snapshots</id>
+			<url>http://13.50.240.15:8081/nexus/content/repositories/snapshots</url>
 		</snapshotRepository>
 	</distributionManagement>
 	<build>
