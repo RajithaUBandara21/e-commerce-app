@@ -1,0 +1,7 @@
+@Library('shared-lib@main') _
+
+buildService(
+    serviceName: 'config-server',
+    subPath: 'services/config-server',
+    dockerUser: 'rajithaubandara'
+)
