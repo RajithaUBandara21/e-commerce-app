@@ -1,7 +1,7 @@
 @Library('shared-lib@main') _
 
 buildService(
-    serviceName: 'config-server',
-    subPath: 'services/config-server',
+    serviceName: 'payment-service',
+    subPath: 'services/payment-service',
     dockerUser: 'rajithaubandara'
 )
