@@ -57,12 +57,12 @@
 	<distributionManagement>
 		<repository>
 			<id>Releases</id>
-			<url>http://13.48.49.172:8081/repository/Releases/</url>
+			<url>http://13.50.240.15:8081/repository/Releases/</url>
 		</repository>
 
 		<snapshotRepository>
 			<id>Snapshots</id>
-			<url>http://13.48.49.172:8081/repository/Snapshots/</url>
+			<url>http://13.50.240.15:8081/repository/Snapshots/</url>
 		</snapshotRepository>
 	</distributionManagement>
 	<build>
