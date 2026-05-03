@@ -1,0 +1,7 @@
+@Library('shared-lib@main') _
+
+buildService(
+    serviceName: 'discovery-service',
+    subPath: 'services/discovery-service',
+    dockerUser: 'rajithaubandara'
+)
