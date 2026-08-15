@@ -26,6 +26,7 @@ public class PaymentServiceImpl implements PaymentService {
                         .orderReference(paymentRequestDTO.orderReference())
                         .amount(paymentRequestDTO.amount())
                         .paymentMethode(paymentRequestDTO.paymentMethode())
+                        .success(true)
                         .customerEmail(paymentRequestDTO.customer().email())
                         .customerFirstName(paymentRequestDTO.customer().firstName())
                         .customerLastName(paymentRequestDTO.customer().lastName())

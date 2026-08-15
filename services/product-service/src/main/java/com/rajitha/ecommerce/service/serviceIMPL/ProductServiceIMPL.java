@@ -80,6 +80,16 @@ public class ProductServiceIMPL implements ProductService {
     }
 
     @Override
+    public void releaseStock(List<PurchaseRequestDTO> purchaseRequestDTO) {
+        for (var request : purchaseRequestDTO) {
+            productVariantRepository.findById(request.variantId()).ifPresent(variant -> {
+                variant.setAvailableQuantity(variant.getAvailableQuantity() + request.quantity());
+                productVariantRepository.save(variant);
+            });
+        }
+    }
+
+    @Override
     public ProductResponseDTO findProductById(Integer productId) {
         return productRepository.findById(productId).map(productMapper::toProductResponseDTO).orElseThrow(()-> new EntityNotFoundException("Product not found" + productId));
     }

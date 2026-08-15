@@ -10,6 +10,8 @@ public record PaymentNotificationRequestDTO(
         String orderReference,
         BigDecimal amount,
         PaymentMethode  paymentMethode,
+        boolean success,
+        String reason,
         String customerFirstName,
         String customerLastName,
         String customerEmail

@@ -31,7 +31,6 @@ class PaymentMapperTest {
                 PaymentRequestDTO paymentRequestDTO = PaymentRequestDTO.builder()
                         .amount(new BigDecimal("12"))
                         .paymentMethode(PaymentMethode.BITCOIN)
-                        .orderId(12)
                         .orderReference("reference")
                         .customer(CustomerDTO.builder()
                                 .id("id-1")
@@ -53,7 +52,7 @@ class PaymentMapperTest {
 
                 Assertions.assertNotNull(payment);
                 Assertions.assertEquals(payment.getPaymentMethode(), PaymentMethode.BITCOIN);
-                Assertions.assertEquals(payment.getOrderId(), 12);
+                Assertions.assertEquals(payment.getOrderReference(), "reference");
 
 
             }

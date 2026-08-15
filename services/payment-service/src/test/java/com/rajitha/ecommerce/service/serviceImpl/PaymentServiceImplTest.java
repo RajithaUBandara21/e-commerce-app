@@ -39,8 +39,7 @@ class PaymentServiceImplTest {
             PaymentRequestDTO paymentRequestDTO  = PaymentRequestDTO.builder()
                 .amount(new BigDecimal("265"))
                 .paymentMethode(PaymentMethode.BITCOIN)
-                .orderId(1)
-                .orderReference(null)
+                .orderReference("reference")
                 .customer(CustomerDTO.builder()
                         .id("1-id")
                         .firstName("firstName")
@@ -48,7 +47,7 @@ class PaymentServiceImplTest {
                 .build();
 
         Payment payment = Payment.builder()
-                .orderId(123)
+                .orderReference("reference")
 
                 .build();
 

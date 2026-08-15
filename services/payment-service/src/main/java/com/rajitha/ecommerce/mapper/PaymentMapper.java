@@ -12,7 +12,7 @@ public class PaymentMapper {
         return Payment.builder()
                 .paymentMethode(paymentRequestDTO.paymentMethode())
                 .amount(paymentRequestDTO.amount())
-                .orderId(paymentRequestDTO.orderId())
+                .orderReference(paymentRequestDTO.orderReference())
                 .build();
     }
 }

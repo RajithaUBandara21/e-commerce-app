@@ -27,6 +27,12 @@ public class NotificationConsumer {
     @KafkaListener(topics = "payment-topic" , groupId = "paymentGroup")
     public void consumePaymentSuccessNotification(PaymentConfirmationDTO paymentConfirmationDTO) throws MessagingException {
     log.info("Received Payment Confirmation(consuming the message form payment-topic ):: <{}>", paymentConfirmationDTO);
+
+    if (!paymentConfirmationDTO.success()) {
+        log.info("Payment failed for order <{}> :: {} -- no confirmation email sent", paymentConfirmationDTO.orderReference(), paymentConfirmationDTO.reason());
+        return;
+    }
+
     notificationRepository.save(Notification.builder()
                     .notificationType(PAYMENT_CONFORMATION)
                     .notificationDate(LocalDateTime.now())

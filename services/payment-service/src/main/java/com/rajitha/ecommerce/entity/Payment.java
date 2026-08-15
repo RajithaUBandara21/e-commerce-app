@@ -27,7 +27,7 @@ public class Payment {
     private BigDecimal amount;
     @Enumerated(EnumType.STRING)
     private PaymentMethode paymentMethode;
-    private Integer orderId;
+    private String orderReference;
     @CreatedDate
     @Column(updatable = false, nullable = false)
     private LocalDateTime createdDate;

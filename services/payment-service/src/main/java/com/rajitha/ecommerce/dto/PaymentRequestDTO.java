@@ -10,7 +10,6 @@ public record PaymentRequestDTO(
 
         BigDecimal amount,
         PaymentMethode  paymentMethode,
-        Integer orderId,
         String orderReference,
         @JsonProperty("customer")
         CustomerDTO customer

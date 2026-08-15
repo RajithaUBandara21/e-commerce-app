@@ -14,6 +14,8 @@ public interface ProductService {
 
     List<ProductPurchaseResponseDTO> purchaseProductService(List<PurchaseRequestDTO> purchaseRequestDTO);
 
+    void releaseStock(List<PurchaseRequestDTO> purchaseRequestDTO);
+
     List<ProductPurchaseResponseDTO> purchaseProduct(List<PurchaseRequestDTO> purchaseRequestDTO);
 
     ProductResponseDTO findProductById(Integer productId);

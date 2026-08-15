@@ -181,4 +181,27 @@ var productNotExistException = Assertions.assertThrows(
 
         Assertions.assertEquals("Stock for product variant with id1 changed concurrently, please retry", exception.getMessage());
     }
+
+    @Test
+    void shouldReleaseStockForExistingVariants(){
+
+        ProductVariant variant = ProductVariant.builder().id(1).sku("SKU-1").size("M").color("Red").availableQuantity(3).build();
+
+        Mockito.when(productVariantRepository.findById(1)).thenReturn(java.util.Optional.of(variant));
+
+        productServiceIMPL.releaseStock(List.of(new PurchaseRequestDTO(1, 2.0)));
+
+        Assertions.assertEquals(5, variant.getAvailableQuantity());
+        Mockito.verify(productVariantRepository, Mockito.times(1)).save(variant);
+    }
+
+    @Test
+    void shouldSkipReleaseForUnknownVariant(){
+
+        Mockito.when(productVariantRepository.findById(99)).thenReturn(java.util.Optional.empty());
+
+        productServiceIMPL.releaseStock(List.of(new PurchaseRequestDTO(99, 2.0)));
+
+        Mockito.verify(productVariantRepository, Mockito.never()).save(Mockito.any(ProductVariant.class));
+    }
 }
