@@ -78,15 +78,23 @@ The instinct to "just make it work" tends to pick the data structure that's easi
 
 All changes covered by unit tests (product-service: 11/11 passing; order-service: 6/6 passing; notification-service compiles and context-loads clean).
 
-### Phase 2 — checkout consistency (saga)
-Replace the synchronous "decrement stock → call payment inline" chain with choreography over Kafka:
-1. `order-service` creates order as `PENDING_PAYMENT`, publishes `OrderCreated`.
-2. `product-service` reserves/decrements stock on `OrderCreated`, publishes `StockReserved` or `StockReservationFailed`.
-3. `payment-service` charges on `StockReserved`, publishes `PaymentCompleted`/`PaymentFailed` (topic already exists: `payment-topic`).
-4. `order-service` consumes payment result → `CONFIRMED` or `CANCELLED`; on `StockReservationFailed` or `PaymentFailed`, publish `StockReleaseRequested` (new topic) so `product-service` restores quantity.
-5. `notification-service` keeps consuming `order-topic`/`payment-topic` as it does today — no change needed there.
+### Phase 2 — checkout consistency (saga) — done 2026-08-15
+Replaced the synchronous "decrement stock → call payment inline" chain with Kafka choreography, correlated by `orderReference`. See [CLAUDE.md](CLAUDE.md)'s "Checkout saga" section for the full topic-by-topic flow. Summary of what shipped:
 
-This removes the current failure mode (stock decremented, payment never confirmed, no way back).
+1. ✅ `order-service` creates the order as `PENDING_PAYMENT` and publishes `OrderCreatedEventDTO` to `order-created-topic` — no more direct HTTP calls to product-service/payment-service (`ProductClient`, `PaymentClient`, `RestTemplateConfig` deleted, along with order-service's now-dead `PaymentRequestDTO`).
+2. ✅ `product-service`'s `OrderCreatedConsumer` reserves stock (reusing `purchaseProductService`, so optimistic-locking/insufficient-stock handling carries over unchanged) and publishes success/failure to `stock-topic`.
+3. ✅ `order-service`'s `StockReservationConsumer` reacts to `stock-topic`: sends the order-confirmation email on success, cancels the order on failure.
+4. ✅ `payment-service`'s own `stock-topic` consumer charges via **Stripe** (new: `StripePaymentService`, `com.stripe:stripe-java`) on success only, publishes outcome to `payment-topic` (`PaymentNotificationRequestDTO`/`PaymentConfirmationDTO` gained `success`/`reason` fields).
+5. ✅ `order-service`'s `PaymentResultConsumer` reacts to `payment-topic`: `CONFIRMED` on success; `PAYMENT_FAILED` + publishes `StockReleaseEventDTO` to `stock-release-topic` on failure.
+6. ✅ `product-service`'s `StockReleaseConsumer` restores quantity via the new `ProductService.releaseStock`.
+7. ✅ `notification-service`'s payment listener now guards on `success` — a failed payment is logged, not emailed (no failure email template built yet, by design — see Known simplifications below).
+
+This removes the original failure mode (stock decremented, payment never confirmed, no way back) — a failed reservation cancels cleanly with nothing to release; a failed payment cancels **and** releases the reservation.
+
+**Known simplifications, not oversights:**
+- No consumer-side dedup for redelivered Kafka messages (at-least-once delivery could in theory double-reserve/double-charge on redelivery). Worth revisiting in Phase 6 if this goes to real production load.
+- Stripe charging requires a `stripePaymentMethodId` sourced from a frontend using Stripe Elements/Stripe.js — there is no frontend yet (Phase 5), so real charges can't happen end-to-end until then. Without one, the charge fails closed with a clear reason ("No Stripe payment method provided") rather than faking success.
+- `payment-service`'s original `POST /api/v1/payments` (`PaymentController`/`createPayment`) is untouched and still bypasses Stripe entirely (always "succeeds") — it's a separate, non-saga entry point, not a bug.
 
 ### Phase 3 — cart
 - New `cart-service` (Redis-backed, per the data-structure table above) **or** extend `order-service` with a `Cart`/`CartItem` concept that gets converted to an `Order` at checkout. Decide based on Phase 4 frontend needs — a cart that's just "add/remove/view" fits a small Redis-backed service better than another Postgres schema.

@@ -1,0 +1,7 @@
+@Library('shared-lib@main') _
+
+buildService(
+    serviceName: 'cart-service',
+    subPath: 'services/cart-service',
+    dockerUser: 'rajithaubandara'
+)
