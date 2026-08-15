@@ -2,6 +2,7 @@ package com.rajitha.ecommerce.dto;
 import lombok.Builder;
 
 import java.math.BigDecimal;
+import java.util.List;
 @Builder
 public record ProductResponseDTO(
         int id,
@@ -10,15 +11,15 @@ public record ProductResponseDTO(
 
         String description,
 
-        double availableQuantity,
-
         BigDecimal price,
 
         Integer categoryId,
 
         String categoryName,
 
-        String categoryDescription
+        String categoryDescription,
+
+        List<ProductVariantResponseDTO> variants
 ){
 
 }

@@ -9,6 +9,7 @@ import com.rajitha.ecommerce.entity.Product;
 import com.rajitha.ecommerce.exeption.ProductPurchaseException;
 import com.rajitha.ecommerce.mapper.ProductMapper;
 import com.rajitha.ecommerce.repository.ProductRepository;
+import com.rajitha.ecommerce.repository.ProductVariantRepository;
 import com.rajitha.ecommerce.service.ProductService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
@@ -22,9 +23,11 @@ import java.util.stream.Collectors;
 public class ProductServiceIMPL implements ProductService {
 
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final ProductMapper productMapper;
-    public ProductServiceIMPL(ProductRepository productRepository,ProductMapper productMapper) {
+    public ProductServiceIMPL(ProductRepository productRepository, ProductVariantRepository productVariantRepository, ProductMapper productMapper) {
         this.productRepository = productRepository;
+        this.productVariantRepository = productVariantRepository;
         this.productMapper = productMapper;
     }
 
@@ -37,30 +40,30 @@ public class ProductServiceIMPL implements ProductService {
     @Override
     public List<ProductPurchaseResponseDTO> purchaseProductService(List<PurchaseRequestDTO> purchaseRequestDTO) {
 
-        var productIds = purchaseRequestDTO.stream().map(PurchaseRequestDTO :: productId).toList();
+        var variantIds = purchaseRequestDTO.stream().map(PurchaseRequestDTO :: variantId).toList();
 
-            var sortedProduct  = productRepository.findAllByIdInOrderById(productIds);
+            var sortedVariants  = productVariantRepository.findAllByIdInOrderById(variantIds);
 
 
-        if(productIds.size() != sortedProduct.size()){
-            throw new ProductPurchaseException("One or more product not exists");
+        if(variantIds.size() != sortedVariants.size()){
+            throw new ProductPurchaseException("One or more product variant not exists");
         }
 
-        var sortedRequest = purchaseRequestDTO.stream().sorted(Comparator.comparing(PurchaseRequestDTO::productId)).toList();
+        var sortedRequest = purchaseRequestDTO.stream().sorted(Comparator.comparing(PurchaseRequestDTO::variantId)).toList();
 
         var purchasedProducts = new ArrayList<ProductPurchaseResponseDTO>();
 
 
-        for (int i = 0 ; i < sortedProduct.size() ; i++){
-            var product = sortedProduct.get(i);
-            var productRequest  = sortedRequest.get(i);
-            if (product.getAvailableQuantity() < productRequest.quantity()){
-                throw new ProductPurchaseException("Insufficient stock quantity for product with id"+product.getId());
+        for (int i = 0 ; i < sortedVariants.size() ; i++){
+            var variant = sortedVariants.get(i);
+            var variantRequest  = sortedRequest.get(i);
+            if (variant.getAvailableQuantity() < variantRequest.quantity()){
+                throw new ProductPurchaseException("Insufficient stock quantity for product variant with id"+variant.getId());
             }
-            var newAvailableQuantity = product.getAvailableQuantity() - productRequest.quantity();
-            product.setAvailableQuantity(newAvailableQuantity);
-            productRepository.save(product);
-            purchasedProducts.add(productMapper.toProductPurchaseResponseDTO(product, productRequest.quantity()));
+            var newAvailableQuantity = variant.getAvailableQuantity() - variantRequest.quantity();
+            variant.setAvailableQuantity(newAvailableQuantity);
+            productVariantRepository.save(variant);
+            purchasedProducts.add(productMapper.toProductPurchaseResponseDTO(variant, variantRequest.quantity()));
         }
 
         return purchasedProducts;

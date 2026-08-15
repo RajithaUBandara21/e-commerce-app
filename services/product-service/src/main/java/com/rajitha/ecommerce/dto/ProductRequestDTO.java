@@ -1,10 +1,12 @@
 package com.rajitha.ecommerce.dto;
 
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Builder;
 
 import java.math.BigDecimal;
+import java.util.List;
 @Builder
 public record ProductRequestDTO
         (
@@ -14,11 +16,11 @@ public record ProductRequestDTO
         String name,
         @NotNull(message = " Product description is required")
         String description,
-        @Positive(message = "Available quantity should be positive")
-        double availableQuantity,
         @Positive(message = "Product price should be positive")
         BigDecimal price,
         @NotNull(message = "Product category should be required")
-        Integer categoryId
+        Integer categoryId,
+        @NotEmpty(message = "Product must have at least one variant")
+        List<ProductVariantRequestDTO> variants
 )
 {}
