@@ -96,14 +96,17 @@ This removes the original failure mode (stock decremented, payment never confirm
 - Stripe charging requires a `stripePaymentMethodId` sourced from a frontend using Stripe Elements/Stripe.js — there is no frontend yet (Phase 5), so real charges can't happen end-to-end until then. Without one, the charge fails closed with a clear reason ("No Stripe payment method provided") rather than faking success.
 - `payment-service`'s original `POST /api/v1/payments` (`PaymentController`/`createPayment`) is untouched and still bypasses Stripe entirely (always "succeeds") — it's a separate, non-saga entry point, not a bug.
 
-### Phase 3 — cart
-- New `cart-service` (Redis-backed, per the data-structure table above) **or** extend `order-service` with a `Cart`/`CartItem` concept that gets converted to an `Order` at checkout. Decide based on Phase 4 frontend needs — a cart that's just "add/remove/view" fits a small Redis-backed service better than another Postgres schema.
-- Endpoints: `POST /api/v1/cart/items`, `DELETE /api/v1/cart/items/{variantId}`, `GET /api/v1/cart`, `POST /api/v1/cart/checkout` (hands off to order creation).
+### Phase 3 — cart — done 2026-08-15
+New `cart-service` (9th service), Redis-backed per the decision in §5. `GET/DELETE /api/v1/cart/{userId}`, `POST /api/v1/cart/{userId}/items` (increment), `PUT /api/v1/cart/{userId}/items/{variantId}` (set exact quantity, `0` removes), `POST /api/v1/cart/{userId}/checkout` (builds an `OrderRequestDTO` from the cart's items and calls `order-service` via `OrderClient` Feign, honoring the checkout request's own `Idempotency-Key` pass-through). `CartRepository` wraps `StringRedisTemplate` hash ops directly on `cart:{userId}` — no Spring Data Redis repository abstraction, since that doesn't fit the "one hash per cart" shape. `redis:7-alpine` added to `docker-compose.yml` (port 6379). 7/7 tests passing.
 
-### Phase 4 — auth + gateway hardening
-- Keycloak realm `micro`: add a public client for Next.js (PKCE, redirect URIs for `localhost:3000` and prod domain), and confirm role mapping (customer vs admin) reaches the JWT.
-- `api-gateway`: CORS for the Next.js origin; Redis-backed `RequestRateLimiter`; Resilience4j circuit breaker + retry + timeout wrapping the downstream routes (or push this to each service's Feign clients — pick one place, not both).
-- Unify `order-service`'s HTTP clients on Feign (retire the raw `RestTemplate` `ProductClient`) so resilience config is consistent across `CustomerClient`/`PaymentClient`/`ProductClient`.
+**Known limitation, inherited from order-service, not new**: `CartCheckoutRequestDTO.totalAmount` is client-supplied, not recomputed server-side from `product-service`'s authoritative variant prices — `order-service`'s `OrderRequestDTO.totalAmount` already had this gap before cart-service existed. Worth a dedicated fix across both services together, not a cart-service-only patch.
+
+### Phase 4 — auth + gateway hardening — done 2026-08-15
+- ✅ *Already resolved as a side effect of Phase 2*: `order-service`'s HTTP clients are unified — `ProductClient`/`PaymentClient` were deleted when the saga replaced their synchronous calls, leaving only `CustomerClient` (Feign). Nothing left to "unify."
+- ✅ `api-gateway` CORS: `SecurityConfiguration` now has a `CorsConfigurationSource` allowing `${application.config.frontend-origin:http://localhost:3000}` with credentials, wired into the security filter chain. (Also fixed a pre-existing one-character typo — `"(/eureka/**"` — that silently broke the Eureka path exemption.)
+- ✅ Redis-backed `RequestRateLimiter` (20 req/s, burst 40, per-remote-address via a new `KeyResolver` bean) applied gateway-wide via `spring.cloud.gateway.default-filters` — this works regardless of how routes are defined, since routing config for this gateway lives in the external `e-com-app-config` repo, not here.
+- ✅ Resilience4j `CircuitBreaker` (`defaultCircuitBreaker`, 50% failure threshold trips it, falls back to `/fallback`) + Gateway's built-in `Retry` (3 attempts, GET only — deliberately excludes POST/PUT so a retry can't double-submit a non-idempotent request) + `httpclient` connect/response timeouts, all gateway-wide via the same `default-filters` mechanism.
+- ✅ `keycloak/setup-nextjs-client.sh` — a runnable (not just documented) Keycloak Admin REST API script that provisions a public `nextjs-storefront` client (authorization code + PKCE, no secret) in the `micro` realm. **You need to actually run this** against your running Keycloak (`docker compose up -d keycloak` first) — nothing about the `micro` realm lives in this repo (it was hand-created in the admin console originally), so this is the closest to "in-repo" that client provisioning can get without a full realm-export.
 
 ### Phase 5 — Next.js frontend
 - App Router: `/` (catalog), `/products/[slug]` (PDP with size/color variant picker sourced from `ProductResponseDTO.variants`), `/cart`, `/checkout`, `/account/orders`.
