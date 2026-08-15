@@ -42,7 +42,10 @@ class ProductMapperTest {
 
        Product product = productMapper.toProductEntity(productRequestDTO);
        Assertions.assertNotNull(product);
-       Assertions.assertEquals(product.getId(), productRequestDTO.id());
+       // id is deliberately left null here — Hibernate's IDENTITY strategy needs a null id to
+       // treat this as a new row to INSERT; a non-null id (even 0) makes save() try to UPDATE
+       // a row that doesn't exist and fail. See ProductServiceIMPLTest for the regression case.
+       Assertions.assertNull(product.getId());
        Assertions.assertEquals(product.getName(), productRequestDTO.name());
        Assertions.assertEquals(product.getDescription(), productRequestDTO.description());
        Assertions.assertEquals(product.getPrice(), productRequestDTO.price());

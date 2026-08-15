@@ -1,22 +1,32 @@
 @import "tailwindcss";
 
+/*
+ * A storefront commits to one look — bright, high-contrast, product-forward —
+ * the same way the reference design does. No dark-mode branch here; that's a
+ * deliberate choice for the shopping pages, not an oversight.
+ */
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --surface-muted: #f4f4f3;
+  --border-subtle: #e7e5e4;
+  --accent: #ff5a1f;
+  --accent-hover: #e64d15;
+  --accent-foreground: #ffffff;
+  --accent-soft: #fff1ea;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface-muted: var(--surface-muted);
+  --color-border-subtle: var(--border-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

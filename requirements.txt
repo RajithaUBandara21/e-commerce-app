@@ -1,0 +1,24 @@
+# Requirements to build and run this project.
+# repo (backend is Java/Spring Boot, frontend is Next.js/TypeScript). This file
+# is a plain list of the tools and versions you need installed locally, kept
+# as requirements.txt for anyone who goes looking for one by habit.
+#
+# Format: <tool> <version constraint> - <what it's for>
+
+Java (JDK)          21 (LTS)        - all 9 services under services/ (Spring Boot 3.5.13)
+Maven               3.9+            - backend build; each service also ships ./mvnw, so a
+                                       system install isn't strictly required
+Node.js             20+             - frontend/ (Next.js 16); this repo was built against 22.14.0
+npm                 10+             - frontend/ package management; built against 11.11.1
+Docker              latest          - local infrastructure via docker-compose.yml
+Docker Compose      v2 (the         - `docker compose up -d` (Postgres, MongoDB, Kafka, Redis,
+                    `docker compose`  Keycloak, MailDev, Zipkin)
+                    plugin form)
+Git                 any recent      - version control
+
+# Optional, only needed for specific workflows:
+curl                any recent      - keycloak/setup-nextjs-client.sh (Keycloak Admin REST API)
+Stripe test account -               - payment-service's Stripe integration needs a real
+                                       STRIPE_SECRET_KEY (test mode) to actually charge; without
+                                       one, charges fail closed with a clear error, they don't
+                                       fake success

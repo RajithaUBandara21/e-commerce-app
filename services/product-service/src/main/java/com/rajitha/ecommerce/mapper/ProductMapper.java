@@ -20,7 +20,6 @@ public class ProductMapper {
             throw new NullPointerException("productRequestDTO is null");
         }
         Product product = Product.builder()
-                .id(productRequestDTO.id())
                 .name(productRequestDTO.name())
                 .description(productRequestDTO.description())
                 .price(productRequestDTO.price())
@@ -38,7 +37,6 @@ public class ProductMapper {
 
     public ProductVariant toProductVariantEntity(ProductVariantRequestDTO variantRequestDTO, Product product) {
         return ProductVariant.builder()
-                .id(variantRequestDTO.id())
                 .sku(variantRequestDTO.sku())
                 .size(variantRequestDTO.size())
                 .color(variantRequestDTO.color())

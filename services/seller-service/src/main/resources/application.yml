@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: seller-service
+  config:
+    import: optional:configserver:http://localhost:8888
+
+stripe:
+  secret-key: ${STRIPE_SECRET_KEY:}
+
+keycloak:
+  admin:
+    base-url: ${KEYCLOAK_URL:http://localhost:8080}
+    realm: ${KEYCLOAK_REALM:micro}
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:seller-service}
+    client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+    seller-role: ${KEYCLOAK_SELLER_ROLE:seller}

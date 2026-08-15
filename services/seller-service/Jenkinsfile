@@ -1,0 +1,7 @@
+@Library('shared-lib@main') _
+
+buildService(
+    serviceName: 'seller-service',
+    subPath: 'services/seller-service',
+    dockerUser: 'rajithaubandara'
+)

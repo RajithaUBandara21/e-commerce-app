@@ -29,7 +29,7 @@ public class ProductController {
     }
 
     @GetMapping("/{product-id}")
-    public ResponseEntity<ProductResponseDTO>  productFindById(@PathVariable Integer productId){
+    public ResponseEntity<ProductResponseDTO>  productFindById(@PathVariable("product-id") Integer productId){
         return ResponseEntity.ok(productService.findProductById(productId));
     }
 
