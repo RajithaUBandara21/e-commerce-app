@@ -37,8 +37,11 @@ const { handlers, auth, signIn, signOut } = NextAuth({
       // Server Actions (which is what it's for) but also to client JS via
       // useSession(). Hardening this to a server-only token (via next-auth/jwt's
       // getToken() instead of auth()) is Phase 6 work, not done here.
-      session.accessToken = token.accessToken as string | undefined;
-      session.userId = token.userId as string | undefined;
+      session.accessToken = token.accessToken;
+      // AdapterSession.userId (required string, from the database-session
+      // strategy we don't use) intersects with our optional Session.userId
+      // augmentation, so the merged param type requires a plain string here.
+      session.userId = token.userId as string;
       return session;
     },
   },
