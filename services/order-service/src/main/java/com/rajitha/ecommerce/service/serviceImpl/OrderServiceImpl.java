@@ -3,6 +3,7 @@ import com.rajitha.ecommerce.client.feign.CustomerClient;
 import com.rajitha.ecommerce.client.feign.PaymentClient;
 import com.rajitha.ecommerce.client.rest.ProductClient;
 import com.rajitha.ecommerce.dto.*;
+import com.rajitha.ecommerce.enums.OrderStatus;
 import com.rajitha.ecommerce.messaging.OrderProducer;
 import com.rajitha.ecommerce.mapper.OrderMapper;
 import com.rajitha.ecommerce.repository.OrderRepository;
@@ -66,7 +67,16 @@ public class OrderServiceImpl implements OrderService {
 
 );
 
-        paymentClient.requestOrderPayment(paymentRequestDTO);
+        try {
+            paymentClient.requestOrderPayment(paymentRequestDTO);
+        } catch (RuntimeException e) {
+            order.setStatus(OrderStatus.PAYMENT_FAILED);
+            orderRepository.save(order);
+            throw new BusinessException("Order payment failed for order reference: " + order.getReference());
+        }
+
+        order.setStatus(OrderStatus.CONFIRMED);
+        orderRepository.save(order);
 
 //        send the order conform  --> notification-ms(kafka)
         orderProducer.sendOrderConformation(

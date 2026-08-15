@@ -1,4 +1,5 @@
 package com.rajitha.ecommerce.dto;
+import com.rajitha.ecommerce.enums.OrderStatus;
 import com.rajitha.ecommerce.enums.PaymentMethode;
 import lombok.Builder;
 import java.math.BigDecimal;
@@ -9,6 +10,7 @@ public record OrderResponseDTO(
         String reference,
         BigDecimal amount,
         PaymentMethode paymentMethode,
+        OrderStatus status,
         String customerId
 ) {
 

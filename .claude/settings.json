@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(mvn -q -o compile)",
-      "Bash(mvn -q compile)"
+      "Bash(mvn -q compile)",
+      "Bash(mvn -q test)",
+      "Bash(xargs grep -H \"Tests run\")"
     ]
   }
 }

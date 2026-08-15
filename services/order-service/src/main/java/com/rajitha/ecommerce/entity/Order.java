@@ -1,4 +1,5 @@
 package com.rajitha.ecommerce.entity;
+import com.rajitha.ecommerce.enums.OrderStatus;
 import com.rajitha.ecommerce.enums.PaymentMethode;
 import jakarta.persistence.*;
 import lombok.*;
@@ -31,6 +32,9 @@ public class Order {
 
     @Enumerated(STRING)
     private PaymentMethode paymentMethode;
+
+    @Enumerated(STRING)
+    private OrderStatus status;
 
     private String customerId;
 

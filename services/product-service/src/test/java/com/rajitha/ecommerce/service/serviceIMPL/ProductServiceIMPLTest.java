@@ -157,4 +157,28 @@ var productNotExistException = Assertions.assertThrows(
 
         Assertions.assertEquals( "Insufficient stock quantity for product variant with id"+requests2.get(0).variantId() ,productRequestCountMinusException.getMessage());
     }
+
+    @Test
+    void shouldThrowProductPurchaseExceptionOnConcurrentStockUpdate(){
+
+        List<PurchaseRequestDTO> requests = List.of(
+                new PurchaseRequestDTO(1, 2.0)
+        );
+
+        Product product1 = Product.builder().id(1).name("name1").description("description1").price(new BigDecimal(265)).category(Category.builder().id(1).name("categoryName1").build()).build();
+        ProductVariant variant1 = ProductVariant.builder().id(1).sku("SKU-1").size("M").color("Red").availableQuantity(65).product(product1).build();
+
+        List<ProductVariant> sortedVariants = List.of(variant1);
+
+        Mockito.when(productVariantRepository.findAllByIdInOrderById(Mockito.anyList())).thenReturn(sortedVariants);
+        Mockito.when(productVariantRepository.save(Mockito.any(ProductVariant.class)))
+                .thenThrow(new org.springframework.orm.ObjectOptimisticLockingFailureException(ProductVariant.class, 1));
+
+        var exception = Assertions.assertThrows(
+                ProductPurchaseException.class,
+                () -> productServiceIMPL.purchaseProductService(requests)
+        );
+
+        Assertions.assertEquals("Stock for product variant with id1 changed concurrently, please retry", exception.getMessage());
+    }
 }

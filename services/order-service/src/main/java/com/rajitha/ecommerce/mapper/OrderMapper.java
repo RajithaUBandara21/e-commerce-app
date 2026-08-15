@@ -2,6 +2,7 @@ package com.rajitha.ecommerce.mapper;
 import com.rajitha.ecommerce.dto.OrderRequestDTO;
 import com.rajitha.ecommerce.dto.OrderResponseDTO;
 import com.rajitha.ecommerce.entity.Order;
+import com.rajitha.ecommerce.enums.OrderStatus;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -13,6 +14,7 @@ public class OrderMapper {
         .reference(orderRequestDTO.reference())
         .totalAmount(orderRequestDTO.totalAmount())
         .paymentMethode(orderRequestDTO.paymentMethode())
+        .status(OrderStatus.PENDING_PAYMENT)
         .customerId(orderRequestDTO.customerId())
 //        .orderLines(orderRequestDTO.)
 //        .createdDate(orderRequestDTO.)
@@ -26,6 +28,7 @@ public class OrderMapper {
                 .reference(order.getReference())
                 .amount(order.getTotalAmount())
                 .paymentMethode(order.getPaymentMethode())
+                .status(order.getStatus())
                 .customerId(order.getCustomerId())
                 .build();
     }

@@ -12,6 +12,7 @@ import com.rajitha.ecommerce.repository.ProductRepository;
 import com.rajitha.ecommerce.repository.ProductVariantRepository;
 import com.rajitha.ecommerce.service.ProductService;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -62,7 +63,11 @@ public class ProductServiceIMPL implements ProductService {
             }
             var newAvailableQuantity = variant.getAvailableQuantity() - variantRequest.quantity();
             variant.setAvailableQuantity(newAvailableQuantity);
-            productVariantRepository.save(variant);
+            try {
+                productVariantRepository.save(variant);
+            } catch (OptimisticLockingFailureException e) {
+                throw new ProductPurchaseException("Stock for product variant with id" + variant.getId() + " changed concurrently, please retry");
+            }
             purchasedProducts.add(productMapper.toProductPurchaseResponseDTO(variant, variantRequest.quantity()));
         }
 

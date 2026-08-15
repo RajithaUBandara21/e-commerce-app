@@ -5,6 +5,7 @@ import com.rajitha.ecommerce.dto.OrderResponseDTO;
 import com.rajitha.ecommerce.dto.PurchaseRequestDTO;
 import com.rajitha.ecommerce.entity.Order;
 import com.rajitha.ecommerce.entity.OrderLine;
+import com.rajitha.ecommerce.enums.OrderStatus;
 import com.rajitha.ecommerce.enums.PaymentMethode;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
