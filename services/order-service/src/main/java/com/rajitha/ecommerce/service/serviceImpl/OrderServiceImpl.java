@@ -1,10 +1,7 @@
 package com.rajitha.ecommerce.service.serviceImpl;
 import com.rajitha.ecommerce.client.feign.CustomerClient;
-import com.rajitha.ecommerce.client.feign.PaymentClient;
-import com.rajitha.ecommerce.client.rest.ProductClient;
 import com.rajitha.ecommerce.dto.*;
-import com.rajitha.ecommerce.enums.OrderStatus;
-import com.rajitha.ecommerce.messaging.OrderProducer;
+import com.rajitha.ecommerce.messaging.OrderCreatedProducer;
 import com.rajitha.ecommerce.mapper.OrderMapper;
 import com.rajitha.ecommerce.repository.OrderRepository;
 import com.rajitha.ecommerce.service.OrderLineService;
@@ -22,11 +19,9 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderMapper orderMapper;
     private final CustomerClient customerClient;
-    private final ProductClient productClient ;
     private final OrderRepository orderRepository;
     private final OrderLineService orderLineService;
-    private final OrderProducer orderProducer;
-    private final PaymentClient paymentClient;
+    private final OrderCreatedProducer orderCreatedProducer;
 
 
     @Override
@@ -39,20 +34,17 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-//        check the customer -> OpenFeign
+//        check the customer -> OpenFeign (fail fast before anything is persisted)
         CustomerResponseDTO customer  = customerClient.findCustomerById(orderRequestDTO.customerId()).orElseThrow(()->new BusinessException ("Cannot create order :: no customer exists with provided id: " + orderRequestDTO.customerId() ));
 
-//        purchase the products ->product-ms (use Rest template)
-        var purchaseProduct = productClient.purchaseProducts(orderRequestDTO.products());
-
-//        persist oder
+//        persist oder as PENDING_PAYMENT -- stock reservation and payment happen asynchronously from here
         var orderToSave = orderMapper.toOder(orderRequestDTO);
         orderToSave.setIdempotencyKey(idempotencyKey);
         var order = orderRepository.save(orderToSave);
 
-//        persist order line
+//        persist order line (records what was requested, regardless of eventual reservation outcome)
         for(PurchaseRequestDTO products :orderRequestDTO.products()){
-          var saveOrderLineResponse= orderLineService.saveOrderLine(
+          orderLineService.saveOrderLine(
                     new OrderLineRequestDTO(
                             null,
                             order.getId(),
@@ -60,45 +52,20 @@ public class OrderServiceImpl implements OrderService {
                             products.quantity()
                                             )
             );
-
-
-
-
         }
 
-
-//        Start payment process
-        PaymentRequestDTO paymentRequestDTO = new PaymentRequestDTO(
-                    orderRequestDTO.totalAmount(),
-                    orderRequestDTO.paymentMethode(),
-                    orderRequestDTO.id(),
-                    orderRequestDTO.reference(),
-                    customer
-
-);
-
-        try {
-            paymentClient.requestOrderPayment(paymentRequestDTO);
-        } catch (RuntimeException e) {
-            order.setStatus(OrderStatus.PAYMENT_FAILED);
-            orderRepository.save(order);
-            throw new BusinessException("Order payment failed for order reference: " + order.getReference());
-        }
-
-        order.setStatus(OrderStatus.CONFIRMED);
-        orderRepository.save(order);
-
-//        send the order conform  --> notification-ms(kafka)
-        orderProducer.sendOrderConformation(
-                OrderConfirmationDTO.builder()
-                        .orderReference(orderRequestDTO.reference())
+//        hand off to the saga: product-service reserves stock, then payment-service charges
+        orderCreatedProducer.sendOrderCreated(
+                OrderCreatedEventDTO.builder()
+                        .orderReference(order.getReference())
                         .totalAmount(orderRequestDTO.totalAmount())
                         .paymentMethode(orderRequestDTO.paymentMethode())
-                        .customerResponseDTO(customer)
-                        .products(purchaseProduct)
-
-                .build()
+                        .stripePaymentMethodId(orderRequestDTO.stripePaymentMethodId())
+                        .customer(customer)
+                        .products(orderRequestDTO.products())
+                        .build()
         );
+
         return order.getId();
     }
 

@@ -11,4 +11,14 @@ public class KafkaOrderTopicConfig {
     public NewTopic orderTopic() {
         return TopicBuilder.name("order-topic").build();
     }
+
+    @Bean
+    public NewTopic orderCreatedTopic() {
+        return TopicBuilder.name("order-created-topic").build();
+    }
+
+    @Bean
+    public NewTopic stockReleaseTopic() {
+        return TopicBuilder.name("stock-release-topic").build();
+    }
 }

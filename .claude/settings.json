@@ -5,7 +5,8 @@
       "Bash(mvn -q compile)",
       "Bash(mvn -q test)",
       "Bash(xargs grep -H \"Tests run\")",
-      "Bash(xargs grep -l \"FAILED\\\\|Error\")"
+      "Bash(xargs grep -l \"FAILED\\\\|Error\")",
+      "Bash(mvn -q compile test)"
     ]
   }
 }
