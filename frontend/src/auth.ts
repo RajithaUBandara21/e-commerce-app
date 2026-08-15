@@ -13,6 +13,11 @@ const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    // Gates the routes matched by proxy.ts's `config.matcher` — without this,
+    // `export { auth as proxy }` only attaches session info, it doesn't redirect.
+    authorized({ auth }) {
+      return !!auth;
+    },
     // Keep the Keycloak access token (and the customer id it identifies) on
     // the server-held session — cart-service/order-service/api-gateway are
     // called with it, but it never needs to reach the browser as a JWT.
@@ -27,6 +32,11 @@ const { handlers, auth, signIn, signOut } = NextAuth({
       return token;
     },
     async session({ session, token }) {
+      // Known simplification: auth() and useSession() share one session shape
+      // in NextAuth v5, so putting accessToken here makes it available to
+      // Server Actions (which is what it's for) but also to client JS via
+      // useSession(). Hardening this to a server-only token (via next-auth/jwt's
+      // getToken() instead of auth()) is Phase 6 work, not done here.
       session.accessToken = token.accessToken as string | undefined;
       session.userId = token.userId as string | undefined;
       return session;
