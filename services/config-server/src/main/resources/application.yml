@@ -9,7 +9,7 @@ spring:
         git:
           uri: https://github.com/RajithaUBandara21/e-com-app-config.git
           username: RajithaUBandara21
-          password: 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
+          password: ${GITHUB_TOKEN}
           default-label: main
 server:
   port: 8888

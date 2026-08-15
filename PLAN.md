@@ -69,12 +69,14 @@ The instinct to "just make it work" tends to pick the data structure that's easi
 ### Phase 0 — done this session
 - `product-service`: `ProductVariant` (sku/size/color/stock), purchase flow keyed on `variantId`. Tests updated and passing.
 
-### Phase 1 — close the correctness gaps (before any new feature work)
-1. Add `@Version` to `ProductVariant` (optimistic locking) — smallest fix for the oversell race.
-2. Add `OrderStatus` to `Order` + migration; wire it through `createOrder`/`getOderById`.
-3. Update `order-service`'s `PurchaseRequestDTO`/`OrderLine`/`ProductClient` to send `variantId`, matching `product-service`'s new contract.
-4. Add `Idempotency-Key` handling to `POST /api/v1/orders` (or wherever order creation ends up).
-5. Rotate the leaked GitHub PAT in `config-server`'s `application.yml`; replace with `${GITHUB_TOKEN}`.
+### Phase 1 — close the correctness gaps (before any new feature work) — done 2026-08-15
+1. ✅ `@Version` added to `ProductVariant`; concurrent-save conflicts now surface as a clear `ProductPurchaseException` ("changed concurrently, please retry") instead of an oversell or a raw 500.
+2. ✅ `OrderStatus` (`PENDING_PAYMENT`/`CONFIRMED`/`PAYMENT_FAILED`/`CANCELLED`/`SHIPPED`/`DELIVERED`/`REFUNDED`) added to `Order`; `createOrder` now sets it at each transition and a payment-client failure is caught, persisted as `PAYMENT_FAILED`, and rethrown instead of silently leaving stock decremented with no record.
+3. ✅ `order-service`'s `PurchaseRequestDTO`/`PurchaseResponseDTO`/`OrderLine`/`OrderLineRequestDTO` migrated from `productId` to `variantId`, matching `product-service`'s contract. `notification-service`'s copy of `PurchaseResponseDTO` updated to match (same Kafka payload shape, now carrying `variantId`/`size`/`color`).
+4. ✅ `Idempotency-Key` header on `POST /api/v1/orders`: a repeated key returns the existing order id and skips customer/stock/payment calls entirely (checked via `OrderRepository.findByIdempotencyKey`, unique-constrained column).
+5. ✅ Leaked GitHub PAT in `config-server`'s `application.yml` replaced with `${GITHUB_TOKEN}`. **Still needs manual action**: revoke the old token at github.com/settings/tokens and scrub it from git history — this edit only stops it from being read going forward, it doesn't remove it from past commits.
+
+All changes covered by unit tests (product-service: 11/11 passing; order-service: 6/6 passing; notification-service compiles and context-loads clean).
 
 ### Phase 2 — checkout consistency (saga)
 Replace the synchronous "decrement stock → call payment inline" chain with choreography over Kafka:

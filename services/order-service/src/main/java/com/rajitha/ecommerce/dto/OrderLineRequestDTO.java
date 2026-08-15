@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Positive;
 public record OrderLineRequestDTO(
 Integer id,
 Integer orderId,
-Integer productId,
+Integer variantId,
 double quantity
 ) {
 }

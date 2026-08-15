@@ -16,6 +16,6 @@ public class OrderLine {
     @ManyToOne
     @JoinColumn(name = "order_id")
     private Order order;
-    private Integer productId;
+    private Integer variantId;
     private double quantity;
 }

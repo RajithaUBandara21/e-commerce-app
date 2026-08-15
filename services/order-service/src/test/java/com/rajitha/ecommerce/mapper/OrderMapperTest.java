@@ -25,7 +25,7 @@ private OrderMapper orderMapper;
 @Test
     public void shouldMapToOder() {
     PurchaseRequestDTO product = PurchaseRequestDTO.builder()
-            .productId(1)
+            .variantId(1)
             .quantity(2)
             .build();
 
@@ -45,6 +45,7 @@ private OrderMapper orderMapper;
     Assertions.assertEquals(order.getReference(), "reference");
     Assertions.assertEquals(order.getTotalAmount(), new BigDecimal("156"));
     Assertions.assertEquals(order.getPaymentMethode(), PaymentMethode.BITCOIN);
+    Assertions.assertEquals(order.getStatus(), OrderStatus.PENDING_PAYMENT);
 }
 
 
@@ -53,7 +54,7 @@ private OrderMapper orderMapper;
 
     OrderLine orderLine = OrderLine.builder()
             .Id(1)
-            .productId(2)
+            .variantId(2)
             .quantity(2)
             .build();
 
@@ -62,6 +63,7 @@ private OrderMapper orderMapper;
             .reference("reference")
             .totalAmount(new BigDecimal("156"))
             .paymentMethode(PaymentMethode.BITCOIN)
+            .status(OrderStatus.CONFIRMED)
             .customerId("customerId")
             .orderLines(List.of(orderLine))
             .build();
@@ -72,6 +74,6 @@ private OrderMapper orderMapper;
 
     Assertions.assertNotNull(orderResponseDTO);
     Assertions.assertEquals(order.getId(), orderResponseDTO.id());
-    Assertions.assertEquals(order.getId(), orderResponseDTO.id());
+    Assertions.assertEquals(order.getStatus(), orderResponseDTO.status());
 }
 }

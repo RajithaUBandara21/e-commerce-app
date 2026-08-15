@@ -6,8 +6,8 @@ import lombok.Builder;
 
 @Builder
 public record PurchaseRequestDTO(
-        @NotNull(message = "Product is mandatory")
-        Integer productId,
+        @NotNull(message = "Product variant is mandatory")
+        Integer variantId,
         @Positive(message = "Quantity is mandatory")
         double quantity
 ) {

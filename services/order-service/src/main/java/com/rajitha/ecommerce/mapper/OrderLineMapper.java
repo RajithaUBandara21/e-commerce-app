@@ -13,7 +13,7 @@ public class OrderLineMapper {
         return OrderLine.builder().
           Id(orderLineRequest.id()).
           order(Order.builder().Id(orderLineRequest.orderId()).build()).
-          productId(orderLineRequest.productId()).
+          variantId(orderLineRequest.variantId()).
           quantity(orderLineRequest.quantity()).
                 build();
     }
@@ -21,6 +21,7 @@ public class OrderLineMapper {
     public OrderLineResponseDTO toOrderLineResponseDTO(OrderLine orderLine) {
             return OrderLineResponseDTO.builder()
                     .id(orderLine.getId())
+                    .variantId(orderLine.getVariantId())
                     .quantity(orderLine.getQuantity())
                     .build();
     }

@@ -26,7 +26,11 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer Id;
 
+    @Column(unique = true)
     private String reference;
+
+    @Column(unique = true)
+    private String idempotencyKey;
 
     private BigDecimal totalAmount;
 

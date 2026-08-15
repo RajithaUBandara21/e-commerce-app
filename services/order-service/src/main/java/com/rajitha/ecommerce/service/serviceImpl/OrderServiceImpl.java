@@ -30,7 +30,15 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
-    public Integer createOrder(OrderRequestDTO orderRequestDTO) {
+    public Integer createOrder(OrderRequestDTO orderRequestDTO, String idempotencyKey) {
+//        replay of an already-processed request -> return the existing order, don't redo side effects
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            var existingOrder = orderRepository.findByIdempotencyKey(idempotencyKey);
+            if (existingOrder.isPresent()) {
+                return existingOrder.get().getId();
+            }
+        }
+
 //        check the customer -> OpenFeign
         CustomerResponseDTO customer  = customerClient.findCustomerById(orderRequestDTO.customerId()).orElseThrow(()->new BusinessException ("Cannot create order :: no customer exists with provided id: " + orderRequestDTO.customerId() ));
 
@@ -38,7 +46,9 @@ public class OrderServiceImpl implements OrderService {
         var purchaseProduct = productClient.purchaseProducts(orderRequestDTO.products());
 
 //        persist oder
-        var order = orderRepository.save(orderMapper.toOder(orderRequestDTO));
+        var orderToSave = orderMapper.toOder(orderRequestDTO);
+        orderToSave.setIdempotencyKey(idempotencyKey);
+        var order = orderRepository.save(orderToSave);
 
 //        persist order line
         for(PurchaseRequestDTO products :orderRequestDTO.products()){
@@ -46,7 +56,7 @@ public class OrderServiceImpl implements OrderService {
                     new OrderLineRequestDTO(
                             null,
                             order.getId(),
-                            products.productId(),
+                            products.variantId(),
                             products.quantity()
                                             )
             );

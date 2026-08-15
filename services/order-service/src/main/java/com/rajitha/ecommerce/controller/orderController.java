@@ -18,8 +18,10 @@ public class orderController {
     private final OrderServiceImpl orderService;
 
     @PostMapping
-    public ResponseEntity<Integer> createOrder(@RequestBody @Valid OrderRequestDTO orderRequestDTO) {
-    return ResponseEntity.ok(orderService.createOrder(orderRequestDTO));
+    public ResponseEntity<Integer> createOrder(
+            @RequestBody @Valid OrderRequestDTO orderRequestDTO,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    return ResponseEntity.ok(orderService.createOrder(orderRequestDTO, idempotencyKey));
     }
 
     @GetMapping

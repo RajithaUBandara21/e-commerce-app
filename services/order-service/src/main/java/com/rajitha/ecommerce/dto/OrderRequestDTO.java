@@ -23,6 +23,7 @@ public record OrderRequestDTO(
         @NotBlank(message = "Customer should be precised")
         String customerId,
         @NotEmpty(message = "you should at least purchase one product")
-        List<PurchaseRequestDTO> products
+        List<PurchaseRequestDTO> products,
+        String stripePaymentMethodId
 ) {
     }

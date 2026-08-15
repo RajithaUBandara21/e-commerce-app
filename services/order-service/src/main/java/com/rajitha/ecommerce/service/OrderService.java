@@ -8,7 +8,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 
 public interface OrderService {
-    Integer createOrder(@Valid OrderRequestDTO orderRequestDTO);
+    Integer createOrder(@Valid OrderRequestDTO orderRequestDTO, String idempotencyKey);
 
     List<OrderResponseDTO> findAllOderResponses();
 
