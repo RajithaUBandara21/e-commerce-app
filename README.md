@@ -13,7 +13,9 @@ document with diagrams.
 
 For the terse day-to-day reference (endpoints, gotchas, package layout), see
 [CLAUDE.md](CLAUDE.md). For the phase-by-phase build log — what shipped, what was
-deliberately deferred and why — see [PLAN.md](PLAN.md).
+deliberately deferred and why — see [PLAN.md](PLAN.md). For a prep sheet on
+defending the design decisions below in an interview, see
+[INTERVIEW_PREP.md](INTERVIEW_PREP.md).
 
 ## Screenshots
 
