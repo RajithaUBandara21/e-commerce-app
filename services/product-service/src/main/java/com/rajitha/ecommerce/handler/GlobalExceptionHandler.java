@@ -1,6 +1,10 @@
 package com.rajitha.ecommerce.handler;
 
 import com.rajitha.ecommerce.dto.ErrorResponseDTO;
+import com.rajitha.ecommerce.exeption.CategoryAccessDeniedException;
+import com.rajitha.ecommerce.exeption.CategoryNotEmptyException;
+import com.rajitha.ecommerce.exeption.CategoryNotFoundException;
+import com.rajitha.ecommerce.exeption.ProductAccessDeniedException;
 import com.rajitha.ecommerce.exeption.ProductPurchaseException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -25,6 +29,34 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleEntityNotFoundException(EntityNotFoundException ex){
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ProductAccessDeniedException.class)
+    public ResponseEntity<String> handleProductAccessDeniedException(ProductAccessDeniedException ex){
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(CategoryNotFoundException.class)
+    public ResponseEntity<String> handleCategoryNotFoundException(CategoryNotFoundException ex){
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(CategoryNotEmptyException.class)
+    public ResponseEntity<String> handleCategoryNotEmptyException(CategoryNotEmptyException ex){
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(CategoryAccessDeniedException.class)
+    public ResponseEntity<String> handleCategoryAccessDeniedException(CategoryAccessDeniedException ex){
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
                 .body(ex.getMessage());
     }
 

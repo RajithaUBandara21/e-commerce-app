@@ -13,6 +13,8 @@ public record ProductResponseDTO(
 
         BigDecimal price,
 
+        String sellerId,
+
         Integer categoryId,
 
         String categoryName,

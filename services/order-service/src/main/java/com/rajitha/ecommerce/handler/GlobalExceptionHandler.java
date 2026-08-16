@@ -2,6 +2,7 @@ package com.rajitha.ecommerce.handler;
 
 import com.rajitha.ecommerce.dto.ErrorResponseDTO;
 import com.rajitha.ecommerce.exception.BusinessException;
+import com.rajitha.ecommerce.exception.OrderAccessDeniedException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleEntityNotFoundException(EntityNotFoundException ex){
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(OrderAccessDeniedException.class)
+    public ResponseEntity<String> handleOrderAccessDeniedException(OrderAccessDeniedException ex){
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
                 .body(ex.getMessage());
     }
 

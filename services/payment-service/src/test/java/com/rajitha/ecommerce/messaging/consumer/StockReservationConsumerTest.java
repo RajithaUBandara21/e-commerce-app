@@ -2,11 +2,13 @@ package com.rajitha.ecommerce.messaging.consumer;
 
 import com.rajitha.ecommerce.dto.CustomerDTO;
 import com.rajitha.ecommerce.dto.PaymentNotificationRequestDTO;
+import com.rajitha.ecommerce.dto.PurchaseResponseDTO;
 import com.rajitha.ecommerce.dto.StockReservationResultEventDTO;
 import com.rajitha.ecommerce.entity.Payment;
 import com.rajitha.ecommerce.enums.PaymentMethode;
 import com.rajitha.ecommerce.messaging.PaymentNotificationProducer;
 import com.rajitha.ecommerce.repository.PaymentRepository;
+import com.rajitha.ecommerce.service.SellerPayoutService;
 import com.rajitha.ecommerce.service.StripePaymentService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
 class StockReservationConsumerTest {
@@ -27,6 +30,7 @@ class StockReservationConsumerTest {
     @Mock StripePaymentService stripePaymentService;
     @Mock PaymentRepository paymentRepository;
     @Mock PaymentNotificationProducer paymentNotificationProducer;
+    @Mock SellerPayoutService sellerPayoutService;
 
     @Test
     void shouldChargeAndSaveAndNotifyWhenReservationSucceedsAndChargeSucceeds(){
@@ -40,6 +44,8 @@ class StockReservationConsumerTest {
                 .paymentMethode(PaymentMethode.BITCOIN)
                 .stripePaymentMethodId("pm_123")
                 .customer(customer)
+                .products(List.of(PurchaseResponseDTO.builder().variantId(1).sellerId("seller-1")
+                        .price(new BigDecimal("100")).quantity(1.0).build()))
                 .build();
 
         Mockito.when(stripePaymentService.charge(new BigDecimal("100"), "usd", "pm_123", "a@b.com"))
@@ -48,6 +54,7 @@ class StockReservationConsumerTest {
         stockReservationConsumer.consumeStockReservationResult(event);
 
         Mockito.verify(paymentRepository, Mockito.times(1)).save(Mockito.any(Payment.class));
+        Mockito.verify(sellerPayoutService, Mockito.times(1)).recordPayoutsForOrder("reference", event.products());
 
         var captor = ArgumentCaptor.forClass(PaymentNotificationRequestDTO.class);
         Mockito.verify(paymentNotificationProducer, Mockito.times(1)).sendNotification(captor.capture());
@@ -75,6 +82,7 @@ class StockReservationConsumerTest {
         stockReservationConsumer.consumeStockReservationResult(event);
 
         Mockito.verify(paymentRepository, Mockito.never()).save(Mockito.any(Payment.class));
+        Mockito.verify(sellerPayoutService, Mockito.never()).recordPayoutsForOrder(Mockito.any(), Mockito.any());
 
         var captor = ArgumentCaptor.forClass(PaymentNotificationRequestDTO.class);
         Mockito.verify(paymentNotificationProducer, Mockito.times(1)).sendNotification(captor.capture());

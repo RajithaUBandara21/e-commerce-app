@@ -32,7 +32,7 @@ class OrderCreatedConsumerTest {
 
         List<PurchaseRequestDTO> products = List.of(new PurchaseRequestDTO(1, 2.0));
         List<ProductPurchaseResponseDTO> purchased = List.of(
-                new ProductPurchaseResponseDTO(1, 1, "name", "description", "M", "Red", new BigDecimal("100"), 2.0)
+                new ProductPurchaseResponseDTO(1, 1, "name", "description", "M", "Red", new BigDecimal("100"), 2.0, "seller-1")
         );
 
         OrderCreatedEventDTO event = OrderCreatedEventDTO.builder()

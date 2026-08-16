@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface SellerRepository extends JpaRepository<Seller, Integer> {
     Optional<Seller> findByKeycloakUserId(String keycloakUserId);
+    Optional<Seller> findByStripeAccountId(String stripeAccountId);
 }

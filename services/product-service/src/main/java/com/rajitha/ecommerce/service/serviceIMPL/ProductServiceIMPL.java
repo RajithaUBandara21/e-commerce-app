@@ -6,6 +6,7 @@ import com.rajitha.ecommerce.dto.ProductRequestDTO;
 import com.rajitha.ecommerce.dto.ProductResponseDTO;
 import com.rajitha.ecommerce.dto.PurchaseRequestDTO;
 import com.rajitha.ecommerce.entity.Product;
+import com.rajitha.ecommerce.exeption.ProductAccessDeniedException;
 import com.rajitha.ecommerce.exeption.ProductPurchaseException;
 import com.rajitha.ecommerce.mapper.ProductMapper;
 import com.rajitha.ecommerce.repository.ProductRepository;
@@ -33,9 +34,48 @@ public class ProductServiceIMPL implements ProductService {
     }
 
     @Override
-    public Integer createProduct(ProductRequestDTO productRequestDTO) {
-        Product productEntity = productMapper.toProductEntity(productRequestDTO);
+    public Integer createProduct(ProductRequestDTO productRequestDTO, String sellerId) {
+        Product productEntity = productMapper.toProductEntity(productRequestDTO, sellerId);
         return productRepository.save(productEntity).getId();
+    }
+
+    @Override
+    public void updateProduct(Integer productId, ProductRequestDTO productRequestDTO, String sellerId, boolean isAdmin) {
+        var existing = productRepository.findById(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Product not found" + productId));
+        ensureOwnership(existing, sellerId, isAdmin);
+
+        var updated = productMapper.toProductEntity(productRequestDTO, existing.getSellerId());
+        existing.setName(updated.getName());
+        existing.setDescription(updated.getDescription());
+        existing.setPrice(updated.getPrice());
+        existing.setCategory(updated.getCategory());
+
+        // Full replace of the variant list: cascade=ALL + orphanRemoval on
+        // Product.variants means clearing and re-adding is enough for Hibernate to
+        // insert the new ones and delete whatever's no longer present.
+        existing.getVariants().clear();
+        updated.getVariants().forEach(variant -> variant.setProduct(existing));
+        existing.getVariants().addAll(updated.getVariants());
+
+        productRepository.save(existing);
+    }
+
+    @Override
+    public void deleteProduct(Integer productId, String sellerId, boolean isAdmin) {
+        var existing = productRepository.findById(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Product not found" + productId));
+        ensureOwnership(existing, sellerId, isAdmin);
+        productRepository.delete(existing);
+    }
+
+    private void ensureOwnership(Product product, String sellerId, boolean isAdmin) {
+        if (isAdmin) {
+            return;
+        }
+        if (product.getSellerId() == null || !product.getSellerId().equals(sellerId)) {
+            throw new ProductAccessDeniedException("You do not own product " + product.getId());
+        }
     }
 
     @Override
@@ -95,7 +135,10 @@ public class ProductServiceIMPL implements ProductService {
     }
 
     @Override
-    public List<ProductResponseDTO> findAllProduct() {
-        return productRepository.findAll().stream().map(productMapper::toProductResponseDTO).collect(Collectors.toList());
+    public List<ProductResponseDTO> findAllProduct(String sellerId) {
+        var products = sellerId == null || sellerId.isBlank()
+                ? productRepository.findAll()
+                : productRepository.findAllBySellerId(sellerId);
+        return products.stream().map(productMapper::toProductResponseDTO).collect(Collectors.toList());
     }
 }

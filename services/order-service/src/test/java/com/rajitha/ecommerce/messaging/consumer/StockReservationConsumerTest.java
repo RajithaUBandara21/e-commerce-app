@@ -5,9 +5,11 @@ import com.rajitha.ecommerce.dto.OrderConfirmationDTO;
 import com.rajitha.ecommerce.dto.PurchaseResponseDTO;
 import com.rajitha.ecommerce.dto.StockReservationResultEventDTO;
 import com.rajitha.ecommerce.entity.Order;
+import com.rajitha.ecommerce.entity.OrderLine;
 import com.rajitha.ecommerce.enums.OrderStatus;
 import com.rajitha.ecommerce.enums.PaymentMethode;
 import com.rajitha.ecommerce.messaging.OrderProducer;
+import com.rajitha.ecommerce.repository.OrderLineRepository;
 import com.rajitha.ecommerce.repository.OrderRepository;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,7 @@ class StockReservationConsumerTest {
     @InjectMocks
     StockReservationConsumer stockReservationConsumer;
     @Mock OrderRepository orderRepository;
+    @Mock OrderLineRepository orderLineRepository;
     @Mock OrderProducer orderProducer;
 
     @Test
@@ -44,10 +47,36 @@ class StockReservationConsumerTest {
                 .products(List.of(PurchaseResponseDTO.builder().variantId(1).productId(1).name("name").price(new BigDecimal("100")).quantity(1.0).build()))
                 .build();
 
+        Mockito.when(orderRepository.findByReference("reference")).thenReturn(Optional.empty());
+
         stockReservationConsumer.consumeStockReservationResult(event);
 
         Mockito.verify(orderProducer, Mockito.times(1)).sendOrderConformation(Mockito.any(OrderConfirmationDTO.class));
         Mockito.verify(orderRepository, Mockito.never()).save(Mockito.any(Order.class));
+    }
+
+    @Test
+    void shouldBackfillSellerIdOntoOrderLinesOnSuccess(){
+
+        Order order = Order.builder().Id(1).reference("reference").status(OrderStatus.PENDING_PAYMENT).build();
+        OrderLine line = OrderLine.builder().Id(1).order(order).variantId(1).quantity(2.0).build();
+
+        StockReservationResultEventDTO event = StockReservationResultEventDTO.builder()
+                .orderReference("reference")
+                .success(true)
+                .totalAmount(new BigDecimal("100"))
+                .paymentMethode(PaymentMethode.BITCOIN)
+                .products(List.of(PurchaseResponseDTO.builder().variantId(1).productId(1).name("name")
+                        .price(new BigDecimal("100")).quantity(2.0).sellerId("seller-1").build()))
+                .build();
+
+        Mockito.when(orderRepository.findByReference("reference")).thenReturn(Optional.of(order));
+        Mockito.when(orderLineRepository.findOrderLinesByOrderId(1)).thenReturn(List.of(line));
+
+        stockReservationConsumer.consumeStockReservationResult(event);
+
+        Assertions.assertEquals("seller-1", line.getSellerId());
+        Mockito.verify(orderLineRepository).save(line);
     }
 
     @Test

@@ -10,7 +10,11 @@ import java.util.List;
 
 public interface ProductService {
 
-    Integer createProduct(@Valid ProductRequestDTO productRequestDTO);
+    Integer createProduct(@Valid ProductRequestDTO productRequestDTO, String sellerId);
+
+    void updateProduct(Integer productId, @Valid ProductRequestDTO productRequestDTO, String sellerId, boolean isAdmin);
+
+    void deleteProduct(Integer productId, String sellerId, boolean isAdmin);
 
     List<ProductPurchaseResponseDTO> purchaseProductService(List<PurchaseRequestDTO> purchaseRequestDTO);
 
@@ -20,5 +24,5 @@ public interface ProductService {
 
     ProductResponseDTO findProductById(Integer productId);
 
-    List<ProductResponseDTO> findAllProduct();
+    List<ProductResponseDTO> findAllProduct(String sellerId);
 }

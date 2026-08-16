@@ -40,12 +40,13 @@ class ProductMapperTest {
                List.of(variantDTO)
        );
 
-       Product product = productMapper.toProductEntity(productRequestDTO);
+       Product product = productMapper.toProductEntity(productRequestDTO, "seller-1");
        Assertions.assertNotNull(product);
        // id is deliberately left null here — Hibernate's IDENTITY strategy needs a null id to
        // treat this as a new row to INSERT; a non-null id (even 0) makes save() try to UPDATE
        // a row that doesn't exist and fail. See ProductServiceIMPLTest for the regression case.
        Assertions.assertNull(product.getId());
+       Assertions.assertEquals("seller-1", product.getSellerId());
        Assertions.assertEquals(product.getName(), productRequestDTO.name());
        Assertions.assertEquals(product.getDescription(), productRequestDTO.description());
        Assertions.assertEquals(product.getPrice(), productRequestDTO.price());
@@ -117,6 +118,7 @@ class ProductMapperTest {
        product.setName("iPhone 15");
        product.setDescription("Apple phone");
        product.setPrice(new BigDecimal("999.99"));
+       product.setSellerId("seller-1");
        product.setCategory(category);
 
        category.getProducts().add(product);
@@ -143,6 +145,7 @@ class ProductMapperTest {
        Assertions.assertEquals(variant.getSize() , productPurchaseResponseDTO.size());
        Assertions.assertEquals(variant.getColor() , productPurchaseResponseDTO.color());
        Assertions.assertEquals(productQuantity , productPurchaseResponseDTO.quantity());
+       Assertions.assertEquals("seller-1" , productPurchaseResponseDTO.sellerId());
 
 
    }
@@ -154,7 +157,7 @@ class ProductMapperTest {
    @Test
    public void shouldThrowNullPointExceptionMapToProductEntity(){
 
-      var message = Assertions.assertThrows(NullPointerException.class, () -> productMapper.toProductEntity(null));
+      var message = Assertions.assertThrows(NullPointerException.class, () -> productMapper.toProductEntity(null, "seller-1"));
       Assertions.assertEquals(message.getMessage(), "productRequestDTO is null");
    }
 

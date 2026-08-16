@@ -7,6 +7,7 @@ import com.rajitha.ecommerce.dto.PurchaseRequestDTO;
 import com.rajitha.ecommerce.entity.Category;
 import com.rajitha.ecommerce.entity.Product;
 import com.rajitha.ecommerce.entity.ProductVariant;
+import com.rajitha.ecommerce.exeption.ProductAccessDeniedException;
 import com.rajitha.ecommerce.exeption.ProductPurchaseException;
 import com.rajitha.ecommerce.mapper.ProductMapper;
 import com.rajitha.ecommerce.repository.ProductRepository;
@@ -65,15 +66,15 @@ class ProductServiceIMPLTest {
                 .category(Category.builder().id(1).build())
                 .build();
 
-        Mockito.when(productMapper.toProductEntity(dto)).thenReturn(product);
+        Mockito.when(productMapper.toProductEntity(dto, "seller-1")).thenReturn(product);
         Mockito.when(productRepository.save(Mockito.any(Product.class))).thenReturn(product);
 
-        Integer id = productServiceIMPL.createProduct(dto);
+        Integer id = productServiceIMPL.createProduct(dto, "seller-1");
 
         assertNotNull(id);
         assertEquals(1, id);
 
-        Mockito.verify(productMapper,Mockito.times(1)).toProductEntity(dto);
+        Mockito.verify(productMapper,Mockito.times(1)).toProductEntity(dto, "seller-1");
 
         Mockito.verify(productRepository,Mockito.times(1)).save(Mockito.any(Product.class));
     }
@@ -97,8 +98,8 @@ class ProductServiceIMPLTest {
                 variant2
         );
 
-        ProductPurchaseResponseDTO dto1 = new ProductPurchaseResponseDTO(1,1,"name1","description1","M","Red", new BigDecimal(265) , 63.0);
-        ProductPurchaseResponseDTO dto2 = new ProductPurchaseResponseDTO(2,2,"name2","description2","L","Blue", new BigDecimal(262) , 54.0);
+        ProductPurchaseResponseDTO dto1 = new ProductPurchaseResponseDTO(1,1,"name1","description1","M","Red", new BigDecimal(265) , 63.0, "seller-1");
+        ProductPurchaseResponseDTO dto2 = new ProductPurchaseResponseDTO(2,2,"name2","description2","L","Blue", new BigDecimal(262) , 54.0, "seller-2");
 
 
 
@@ -203,5 +204,65 @@ var productNotExistException = Assertions.assertThrows(
         productServiceIMPL.releaseStock(List.of(new PurchaseRequestDTO(99, 2.0)));
 
         Mockito.verify(productVariantRepository, Mockito.never()).save(Mockito.any(ProductVariant.class));
+    }
+
+    @Test
+    void shouldRejectUpdateFromNonOwningSeller() {
+        Product product = Product.builder().id(1).sellerId("seller-1").build();
+        Mockito.when(productRepository.findById(1)).thenReturn(java.util.Optional.of(product));
+
+        ProductRequestDTO dto = ProductRequestDTO.builder()
+                .name("New name").description("desc").price(new BigDecimal("10"))
+                .categoryId(1).variants(List.of()).build();
+
+        Assertions.assertThrows(ProductAccessDeniedException.class,
+                () -> productServiceIMPL.updateProduct(1, dto, "seller-2", false));
+
+        Mockito.verify(productRepository, Mockito.never()).save(Mockito.any(Product.class));
+    }
+
+    @Test
+    void shouldAllowAdminToUpdateAnyProduct() {
+        Product product = Product.builder().id(1).sellerId("seller-1")
+                .variants(new java.util.ArrayList<>()).build();
+        Mockito.when(productRepository.findById(1)).thenReturn(java.util.Optional.of(product));
+
+        ProductVariantRequestDTO variantDTO = ProductVariantRequestDTO.builder()
+                .sku("SKU-1").size("M").color("Red").availableQuantity(5).build();
+        ProductRequestDTO dto = ProductRequestDTO.builder()
+                .name("New name").description("desc").price(new BigDecimal("10"))
+                .categoryId(1).variants(List.of(variantDTO)).build();
+
+        // productMapper is mocked (@InjectMocks wires it into productServiceIMPL), so
+        // stub it with what a real ProductMapper would actually produce for this DTO.
+        Mockito.when(productMapper.toProductEntity(dto, "seller-1"))
+                .thenReturn(new ProductMapper().toProductEntity(dto, "seller-1"));
+
+        productServiceIMPL.updateProduct(1, dto, "some-admin", true);
+
+        Mockito.verify(productRepository).save(product);
+        assertEquals("New name", product.getName());
+        assertEquals(1, product.getVariants().size());
+    }
+
+    @Test
+    void shouldRejectDeleteFromNonOwningSeller() {
+        Product product = Product.builder().id(1).sellerId("seller-1").build();
+        Mockito.when(productRepository.findById(1)).thenReturn(java.util.Optional.of(product));
+
+        Assertions.assertThrows(ProductAccessDeniedException.class,
+                () -> productServiceIMPL.deleteProduct(1, "seller-2", false));
+
+        Mockito.verify(productRepository, Mockito.never()).delete(Mockito.any(Product.class));
+    }
+
+    @Test
+    void shouldAllowOwningSellerToDelete() {
+        Product product = Product.builder().id(1).sellerId("seller-1").build();
+        Mockito.when(productRepository.findById(1)).thenReturn(java.util.Optional.of(product));
+
+        productServiceIMPL.deleteProduct(1, "seller-1", false);
+
+        Mockito.verify(productRepository).delete(product);
     }
 }

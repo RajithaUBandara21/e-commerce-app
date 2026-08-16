@@ -5,6 +5,7 @@ import com.rajitha.ecommerce.dto.StockReservationResultEventDTO;
 import com.rajitha.ecommerce.entity.Payment;
 import com.rajitha.ecommerce.messaging.PaymentNotificationProducer;
 import com.rajitha.ecommerce.repository.PaymentRepository;
+import com.rajitha.ecommerce.service.SellerPayoutService;
 import com.rajitha.ecommerce.service.StripePaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,7 @@ public class StockReservationConsumer {
     private final StripePaymentService stripePaymentService;
     private final PaymentRepository paymentRepository;
     private final PaymentNotificationProducer paymentNotificationProducer;
+    private final SellerPayoutService sellerPayoutService;
 
     @KafkaListener(topics = "stock-topic", groupId = "paymentServiceStockGroup")
     public void consumeStockReservationResult(StockReservationResultEventDTO event) {
@@ -41,6 +43,7 @@ public class StockReservationConsumer {
                     .paymentMethode(event.paymentMethode())
                     .orderReference(event.orderReference())
                     .build());
+            sellerPayoutService.recordPayoutsForOrder(event.orderReference(), event.products());
         }
 
         paymentNotificationProducer.sendNotification(

@@ -108,24 +108,94 @@ New `cart-service` (9th service), Redis-backed per the decision in §5. `GET/DEL
 - ✅ Resilience4j `CircuitBreaker` (`defaultCircuitBreaker`, 50% failure threshold trips it, falls back to `/fallback`) + Gateway's built-in `Retry` (3 attempts, GET only — deliberately excludes POST/PUT so a retry can't double-submit a non-idempotent request) + `httpclient` connect/response timeouts, all gateway-wide via the same `default-filters` mechanism.
 - ✅ `keycloak/setup-nextjs-client.sh` — a runnable (not just documented) Keycloak Admin REST API script that provisions a public `nextjs-storefront` client (authorization code + PKCE, no secret) in the `micro` realm. **You need to actually run this** against your running Keycloak (`docker compose up -d keycloak` first) — nothing about the `micro` realm lives in this repo (it was hand-created in the admin console originally), so this is the closest to "in-repo" that client provisioning can get without a full realm-export.
 
-### Phase 5 — Next.js frontend
-- App Router: `/` (catalog), `/products/[slug]` (PDP with size/color variant picker sourced from `ProductResponseDTO.variants`), `/cart`, `/checkout`, `/account/orders`.
-- Server Components fetch catalog/PDP data straight from `api-gateway` (SSR/ISR with revalidation on stock changes); Client Components own cart/variant-selection interactivity.
-- NextAuth.js with the Keycloak provider from Phase 4; session holds the access token for calling the gateway.
-- Client-side data layer: TanStack Query for request caching/retries against the gateway; keep cart mutations optimistic against the Phase 3 cart endpoints.
-- Product images: since `Product` has no image field yet, add an `imageUrl`/`gallery` field backed by object storage (S3-compatible; MinIO locally via `docker-compose.yml`) rather than storing blobs in Postgres.
+### Phase 5 — Next.js frontend — done 2026-08-15
+New `frontend/` app: Next.js 16 (App Router, Turbopack), TypeScript, Tailwind. Built against the **real** Next.js 16 docs bundled in `node_modules/next/dist/docs/` (not training-data assumptions) — this version renamed `middleware.ts` → `proxy.ts` and changed default `fetch` caching (no longer cached by default), both of which shaped the code below.
 
-### Phase 6 — production hardening
-- **Caching**: Redis cache-aside in front of `GET /api/v1/products` and `GET /api/v1/products/{id}` (read-heavy, changes only on stock/price updates — invalidate on write).
-- **Search**: start with the composite Postgres indexes from §3; only add Elasticsearch if free-text search becomes a real requirement, not preemptively.
-- **Observability**: keep Zipkin (already wired via `micrometer-tracing-bridge-brave`); add Prometheus scraping off each service's `/actuator/prometheus` and a Grafana dashboard for request latency, Kafka consumer lag, and stock-reservation failure rate.
-- **Testing**: Testcontainers-backed integration tests per service (Postgres/Mongo/Kafka), replacing the current pure-Mockito unit tests for the saga-critical paths (`OrderServiceImplTest`, the new stock-reservation consumer); Playwright e2e against a full docker-compose stack for the Next.js checkout flow.
-- **CI/CD**: extend the existing per-service Jenkinsfiles (`buildService(...)` shared-lib calls) with a test gate before the Docker build step; add a Next.js pipeline (lint, type-check, build, Playwright smoke test).
-- **Secrets**: everything currently inline in `application.yml` (Keycloak admin creds, Postgres/Mongo creds in `docker-compose.yml`, the leaked PAT) moves to environment variables or a secrets manager before any non-local deployment.
+- ✅ Pages: `/` (catalog, Server Component), `/products/[id]` (PDP with a client-side size/color `VariantPicker`), `/cart` (Server Component enrichment + `CartView` client component for quantity/remove/checkout), `/checkout/[orderId]` (order status after checkout).
+- ✅ `src/auth.ts` — NextAuth v5 (`next-auth@beta`) with the Keycloak provider (PKCE, `token_endpoint_auth_method: none`, matching the public client from Phase 4's setup script) and an `authorized` callback so `src/proxy.ts` actually gates `/cart`, `/checkout`, `/account`.
+- ✅ Cart/checkout mutations go through Next.js **Server Actions** (`src/lib/actions.ts`), not client-side fetch — they call `auth()` for the session server-side, then `src/lib/api.ts`'s typed gateway client.
+- ✅ **Gateway fix required to unblock this phase**: `api-gateway`'s `SecurityConfiguration` required a JWT on *every* request, which would have made anonymous catalog browsing impossible. Added `permitAll()` for `GET /api/v1/products/**` (also fixed a pre-existing one-character typo — `"(/eureka/**"` — found while in the same method). Assumes the gateway preserves each service's own `/api/v1/<resource>` path; verify against the actual route config in `e-com-app-config` if routes turn out to be prefixed differently.
+- ✅ `keycloak/setup-nextjs-client.sh` (Phase 4) is what this phase's `AUTH_KEYCLOAK_ID`/issuer point at — see `.env.local.example`.
+
+**A real bug hit and fixed while building this, worth remembering**: TypeScript module augmentation (`declare module "next-auth" { ... }`) silently breaks — replacing the real module's types instead of merging with them — if the `.d.ts` file doing the augmenting has no top-level `import`/`export` of its own (it becomes an ambient script, not a module). `src/types/next-auth.d.ts` has an `export {}` specifically to prevent this; removing it reintroduces a `NextAuth(...)` "not callable" error with no indication the cause is the augmentation file. Also: `@auth/core`'s callback signatures import `JWT` from `@auth/core/jwt` internally, not from `next-auth/jwt` — augmenting only the latter leaves `token.accessToken` typed `unknown` inside `callbacks.session`/`callbacks.jwt`. Both modules need the same augmentation.
+
+**Known simplifications, not oversights:**
+- `session.accessToken` is exposed to client-side `useSession()` (NextAuth v5 shares one session shape between `auth()` and `useSession()`) — hardening this to a server-only token via `next-auth/jwt`'s `getToken()` is real but deferred work, noted in `src/auth.ts`.
+- The cart page enriches `cart-service`'s bare `{variantId, quantity}` items by fetching the *entire* product catalog and matching client-side — there's no `GET /api/v1/products/variants/{id}` lookup endpoint yet. Fine at small catalog scale; add a dedicated endpoint if that stops being true.
+- No "my orders" page: `order-service`'s `GET /api/v1/orders` returns every order unfiltered, not scoped to the caller — deliberately not building a page on top of a data leak. Needs customer-scoping in `order-service` first.
+- No custom-branded sign-in page — uses NextAuth's default provider-list page.
+- Product images: `Product` still has no image field; the PDP renders a placeholder block. Needs an `imageUrl`/gallery field backed by object storage (S3-compatible; MinIO locally), per the original Phase 5 plan — not done.
+- `CartCheckoutRequestDTO.totalAmount` is computed client-side from catalog prices already fetched into the page, same trust model as `OrderRequestDTO.totalAmount` (see Phase 3's note) — not server-recomputed.
+
+### Phase 6 — Seller identity & marketplace foundation — done 2026-08-15
+
+The project pivoted from "single-seller storefront, production-hardening only" to a genuine **multi-vendor marketplace**, per a broader follow-up request. This phase (and 7–16 below) supersede the single old "Phase 6 — production hardening" outline; see the "Cloth Shop → Production-Grade Multi-Vendor Marketplace" plan for the full architecture rationale (decisions locked in §5 below).
+
+- ✅ New **`seller-service`** (10th service, Postgres): `Seller` entity (`keycloakUserId`, business profile, `SellerStatus` PENDING/ACTIVE/SUSPENDED, Stripe Connect fields reserved for Phase 7). `POST /api/v1/sellers/register`, `GET /api/v1/sellers/me`, `GET /api/v1/sellers` (admin), `PATCH /api/v1/sellers/{id}/status` (admin) — approving a seller (`status → ACTIVE`) calls Keycloak's Admin REST API to grant the `seller` realm role; suspending revokes it. 6/6 tests passing.
+- ✅ `keycloak/setup-realm-roles.sh` (creates `customer`/`seller`/`admin` realm roles, idempotent) and `keycloak/setup-seller-service-client.sh` (provisions seller-service's confidential service-account client, grants it `manage-users`/`view-users`/`view-realm` on `realm-management` — all three needed: the first two to look up a user and write role mappings, the third because *reading* a realm role's representation is gated separately and 403s without it even with manage-users alone).
+- ✅ `product-service`: `Product.sellerId` (Keycloak subject, string — same non-FK convention as `Order.customerId`). `POST/PUT/DELETE /api/v1/products` now ownership-checked (`ProductAccessDeniedException` → 403 unless caller's id matches `sellerId` or caller is admin); `GET /api/v1/products?sellerId=` for "my catalog". `PUT`/`DELETE /api/v1/products/{id}` didn't exist before this phase — sellers had no way to edit or remove their own listings at all, a real gap now closed.
+- ✅ Full **Category CRUD** in product-service (previously flagged as a gap — only the JPA entity existed, no controller/service/repository at all): public reads, admin-only writes (`X-User-Roles` header check). Deleting a non-empty category is rejected (`CategoryNotEmptyException`, 409) rather than silently cascading — `Category.products` has `cascade = CascadeType.REMOVE`, which would otherwise delete every product in the category as a side effect of an admin action.
+- ✅ `api-gateway`: `SecurityConfiguration` gained a `JwtAuthenticationConverter` unpacking Keycloak's `realm_access.roles` claim into `ROLE_*` authorities (previously unused — no role-based authorization existed anywhere in the gateway) and role-gated path matchers (`ROLE_ADMIN` for category mutations and seller admin endpoints, `ROLE_SELLER`/`ROLE_ADMIN` for product mutations). New `UserContextGatewayFilter` (a `GlobalFilter`) forwards `X-User-Id`/`X-User-Roles` downstream from the validated JWT, stripping any inbound values first so a client can't spoof them — this is what lets product-service/seller-service authorize without each re-validating a JWT themselves (the gateway is the trust boundary, documented in `SecurityConfiguration`'s class javadoc).
+- ✅ Verified against the real, running local stack (not just unit tests): seller registers → admin approves → Keycloak role granted (confirmed by decoding a freshly-issued token) → seller creates/updates/deletes a product with the correct `sellerId` → category admin-only enforcement holds.
+
+**Real bugs hit and fixed while verifying this end-to-end (worth remembering):**
+- **`exchange.getPrincipal()` is not reliably populated inside a Spring Cloud Gateway `GlobalFilter`**, even though the request is fully authenticated by the time the filter runs — it read as empty every time. `ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)` is the mechanism that's actually guaranteed to carry the principal through (backed by the Reactor `Context` Spring Security's `AuthenticationWebFilter` writes into via `.contextWrite(...)`), and is what `UserContextGatewayFilter` uses now.
+- **`RestClient`'s `"{var}"` URI-template substitution percent-encodes whatever you pass in** — `KeycloakRoleClient` originally built URLs as `.uri("{baseUrl}/admin/realms/{realm}/...", properties.baseUrl(), ...)`, and since the template variable's *value* (a full `http://host:port` string) isn't recognized as a scheme+authority by `UriComponentsBuilder`, its `:`/`/` (and, with an IPv6 literal host, even `[`/`]`) get encoded, breaking the URL. Fixed by building the full URL as a plain concatenated string and passing it via `.uri(URI.create(...))`, which parses it as a literal URI with no re-encoding. This bug existed for *any* `baseUrl` value, not just the IPv6 one below — it just hadn't been exercised yet.
+- **Local-environment-only**: an unrelated Apache httpd on the dev machine owns `127.0.0.1:8080`, so Docker's Keycloak port-forward only bound IPv6 (`[::1]:8080`) — `localhost:8080` resolved inconsistently depending on the resolver (curl happened to prefer IPv6; the JVM's `WebClient`/`RestClient` didn't). Worked around entirely in local scratch config (`issuer-uri`/`keycloak.admin.base-url` pointed at the `[::1]` literal) — not a code or repo-config change, since real deployments won't have this conflict.
+- **Keycloak's `admin-cli` client issues near-empty access tokens** (no `sub`, no `realm_access` — just `exp`/`iat`/`azp`/`scope`) when used for manual password-grant testing; a client with the default full client-scope set (like `nextjs-storefront`) is needed to get a token with the claims application code actually depends on. Not a bug, but a real trap when hand-testing with `curl` — worth remembering for future manual verification.
+
+**Known simplifications, not oversights:**
+- No synchronous coupling from product-service to seller-service (product mutation doesn't check the seller's `ACTIVE`/Stripe-onboarding status at write time) — enforcement is via the Keycloak `seller` role itself, granted only on admin approval, so this is enforced at the auth layer, not via an extra network call on every write.
+- Gateway routing for `seller-service` (`/api/v1/sellers/**`) is only defined in this session's local scratch config — the real route needs adding to the external `e-com-app-config` repo (not part of this working directory) before it works outside local testing, same constraint as every other route in this gateway.
+
+### Phase 7 — Seller-aware saga & payouts — done 2026-08-15
+
+- ✅ `sellerId` threaded through the whole saga: `ProductPurchaseResponseDTO` (product-service) → each service's own `PurchaseResponseDTO` copy (order-service, and a newly-added one in payment-service, which previously had no `products` field on its `StockReservationResultEventDTO` at all — it only knew the order total, not what was in it). order-service's `StockReservationConsumer` backfills `OrderLine.sellerId` once stock reservation resolves (order lines are created eagerly at request time from just `{variantId, quantity}` — order-service can't know the seller until product-service resolves it).
+- ✅ **`SellerPayout` ledger** (payment-service, new entity/table): one row per seller per order, computed the moment a Stripe charge succeeds (`StockReservationConsumer` → `SellerPayoutService.recordPayoutsForOrder`). Groups the order's lines by `sellerId`, sums `price × quantity` per seller, applies a flat platform commission (`platform.commission-rate`, default 10%), stores gross/commission/net. `GET /api/v1/payouts` — sellers see only their own (forced off `X-User-Id`, not a spoofable query param), admins see all.
+- ✅ **Stripe Connect onboarding** (seller-service): `POST /api/v1/sellers/me/stripe/onboarding-link` creates an Express account on first call (`Account.create`, capabilities: transfers + card_payments) and returns a fresh `AccountLink` URL every call after. `POST /api/v1/sellers/webhooks/stripe` verifies Stripe's signature (`Webhook.constructEvent`) and updates `chargesEnabled`/`payoutsEnabled` from `account.updated` events — this is the only thing that flips those flags; nothing else touches them.
+- ✅ **Settlement** (payment-service): `SellerPayoutService.settlePendingPayouts()` — one method, two triggers (`POST /api/v1/payouts/settle`, admin-only; and a daily `@Scheduled` job, `platform.payout-settlement-cron`). For each `PENDING` payout: looks up the seller via a new Feign client (`SellerClient`, calls seller-service directly — not through api-gateway, same pattern as order-service's `CustomerClient`); if `payoutsEnabled` is false or there's no Stripe account, marks `FAILED` with a reason; otherwise calls `Transfer.create` (`StripeTransferService`) and marks `PAID`/`FAILED` with the transfer id or failure reason. A seller-lookup failure (seller-service down, etc.) leaves the payout `PENDING` for the next run rather than failing the whole batch.
+- ✅ 28 new/updated tests across product-service, order-service, payment-service, and seller-service — all passing, including the full commission-split math, the three settlement outcomes (paid/failed-no-onboarding/failed-transfer-error), and the "don't crash the batch on one bad lookup" behavior.
+
+**Known simplifications, not oversights:**
+- No end-to-end verification against real Stripe Connect test-mode accounts — `STRIPE_SECRET_KEY` is unset in this environment (same pre-existing limitation as Phase 2's charge flow), so `Account.create`/`AccountLink.create`/`Transfer.create` are only exercised through unit tests with `StripeConnectService`/`StripeTransferService` mocked out, not a live call. The saga-threading and ledger-math parts (the genuinely new logic) don't depend on a real key and are tested for real.
+- Settlement currency is hardcoded `"usd"`, matching `StripePaymentServiceImpl`'s existing charge-side convention — no multi-currency support anywhere in the app yet.
+- `SellerClient`'s base URL is a direct `http://localhost:8095/...` default (`application.config.seller-url`), same non-Eureka-discovery pattern `CustomerClient` already uses — not something this phase introduced.
+
+### Phase 8 — Order lifecycle completeness
+Not started. Seller fulfillment endpoint (tracking/`SHIPPED`/`DELIVERED`), refund flow (Stripe refund + `REFUNDED` + stock-release reuse), customer-scoped `GET /api/v1/orders/mine` + "My Orders" page, coupon codes.
+
+### Phase 9 — Product images
+Not started. MinIO in `docker-compose.yml`, `ProductImage` + presigned upload, seller-dashboard upload UI.
+
+### Phase 10 — Reviews & ratings
+Not started. Verified-purchase-gated `Review` entity in product-service, aggregate rating on PDP/cards.
+
+### Phase 11 — Seller dashboard (frontend)
+Not started. `frontend/src/app/seller/`: overview, products (CRUD + images), orders (fulfillment), payouts.
+
+### Phase 12 — Admin dashboard (frontend)
+Not started. `frontend/src/app/admin/`: categories, seller moderation, all-orders, Grafana links.
+
+### Phase 13 — Observability: Prometheus + Grafana
+Not started. `micrometer-registry-prometheus` on every service, business metrics at saga decision points, `prometheus`/`grafana`/`kafka-exporter` in `docker-compose.yml`.
+
+### Phase 14 — SEO
+Not started. `generateMetadata`, `sitemap.ts`/`robots.ts`, JSON-LD structured data.
+
+### Phase 15 — Security & secrets hardening
+Not started. Root `.env`/`.env.example` for all inline creds (Postgres/Mongo/Keycloak/pgAdmin/Stripe/Keycloak-admin-client-secret).
+
+### Phase 16 — Testing & CI
+Not started. Testcontainers for saga-critical paths, Playwright e2e, explicit `mvn verify` stage in each Jenkinsfile, frontend Jenkinsfile.
 
 ## 5. Decisions (locked 2026-08-15)
 
 1. **Cart** — new `cart-service`, Redis-backed (§3 design: `cart:{userId}` hash).
 2. **Payment provider** — real Stripe integration in `payment-service` (Phase 2 saga charges via Stripe, not a mock).
-3. **Hosting target** — Docker Compose / single VM for production, matching the current dev setup. Phase 6 tooling (secrets, observability) is scoped to that, not Kubernetes.
+3. **Hosting target** — Docker Compose / single VM for production, matching the current dev setup. Phase 13/15 tooling (observability, secrets) is scoped to that, not Kubernetes.
 4. **Category hierarchy** — flat `Category` for v1, no `parent_id`. Revisit only if the catalog actually grows multi-level.
+5. **Marketplace model** — multi-vendor, not single-seller-admin. Sellers are Keycloak users holding a `seller` realm role (granted/revoked by `seller-service` via the Keycloak Admin API on approval/suspension), not a separate identity system.
+6. **Seller scoping in the saga** — no order-splitting into multiple `Order` rows; a single checkout can mix products from multiple sellers, and `OrderLine` gains `sellerId` (Phase 7) rather than restructuring the saga around per-seller sub-orders.
+7. **Payouts** — Stripe Connect "separate charges and transfers": one platform charge per order (unchanged), then per-seller `Transfer`s computed off a flat commission rate (Phase 7), not real-time split payments.
+8. **Trust boundary** — `api-gateway` is the only service that validates JWTs; downstream services authorize off gateway-forwarded `X-User-Id`/`X-User-Roles` headers rather than each re-implementing OAuth2 resource-server config.
+9. **Object storage** — MinIO (self-hosted, local) for product images (Phase 9), not a live cloud bucket.

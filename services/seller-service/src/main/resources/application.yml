@@ -6,6 +6,11 @@ spring:
 
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
+  webhook-secret: ${STRIPE_CONNECT_WEBHOOK_SECRET:}
+
+application:
+  config:
+    frontend-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
 
 keycloak:
   admin:

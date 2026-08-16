@@ -10,4 +10,6 @@ public interface OrderLineRepository extends JpaRepository<OrderLine, Integer> {
 
 
     List<OrderLine> findOrderLinesByOrderId(Integer order_id);
+
+    List<OrderLine> findBySellerId(String sellerId);
 }

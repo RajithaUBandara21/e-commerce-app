@@ -12,6 +12,7 @@ public record PurchaseResponseDTO(
         String size,
         String color,
         BigDecimal price,
-        Double quantity
+        Double quantity,
+        String sellerId
 ) {
 }

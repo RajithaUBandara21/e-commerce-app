@@ -1,12 +1,12 @@
 package com.rajitha.ecommerce.handler;
 
 import com.rajitha.ecommerce.dto.ErrorResponseDTO;
+import com.rajitha.ecommerce.exception.SellerAccessDeniedException;
 import com.rajitha.ecommerce.exception.SellerAlreadyExistsException;
 import com.rajitha.ecommerce.exception.SellerNotFoundException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -27,8 +27,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
     }
 
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<String> handleAccessDeniedException(AccessDeniedException ex) {
+    @ExceptionHandler(SellerAccessDeniedException.class)
+    public ResponseEntity<String> handleAccessDeniedException(SellerAccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
     }
 

@@ -14,7 +14,7 @@ import java.util.List;
 
 @Component
 public class ProductMapper {
-    public Product toProductEntity(ProductRequestDTO productRequestDTO) {
+    public Product toProductEntity(ProductRequestDTO productRequestDTO, String sellerId) {
 
         if (productRequestDTO == null) {
             throw new NullPointerException("productRequestDTO is null");
@@ -23,6 +23,7 @@ public class ProductMapper {
                 .name(productRequestDTO.name())
                 .description(productRequestDTO.description())
                 .price(productRequestDTO.price())
+                .sellerId(sellerId)
                 .category(Category.builder().id(productRequestDTO.categoryId()).build())
                 .build();
 
@@ -58,6 +59,7 @@ public class ProductMapper {
                 product.getName(),
                 product.getDescription(),
                 product.getPrice(),
+                product.getSellerId(),
                 product.getCategory().getId(),
                 product.getCategory().getName(),
                 product.getCategory().getDescription(),
@@ -92,7 +94,8 @@ public class ProductMapper {
                 variant.getSize(),
                 variant.getColor(),
                 product.getPrice(),
-                variantQuantity
+                variantQuantity,
+                product.getSellerId()
         );
     }
 }

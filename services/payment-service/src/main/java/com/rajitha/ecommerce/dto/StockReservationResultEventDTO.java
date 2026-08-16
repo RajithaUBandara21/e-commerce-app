@@ -4,6 +4,7 @@ import com.rajitha.ecommerce.enums.PaymentMethode;
 import lombok.Builder;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Builder
 public record StockReservationResultEventDTO(
@@ -13,6 +14,7 @@ public record StockReservationResultEventDTO(
         BigDecimal totalAmount,
         PaymentMethode paymentMethode,
         String stripePaymentMethodId,
-        CustomerDTO customer
+        CustomerDTO customer,
+        List<PurchaseResponseDTO> products
 ) {
 }

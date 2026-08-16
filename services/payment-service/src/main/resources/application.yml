@@ -6,3 +6,11 @@ spring:
 
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
+
+platform:
+  commission-rate: ${PLATFORM_COMMISSION_RATE:0.10}
+  payout-settlement-cron: ${PAYOUT_SETTLEMENT_CRON:0 0 3 * * *}
+
+application:
+  config:
+    seller-url: ${SELLER_SERVICE_URL:http://localhost:8095/api/v1/sellers}

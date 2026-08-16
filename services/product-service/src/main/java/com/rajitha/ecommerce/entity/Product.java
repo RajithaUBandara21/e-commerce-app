@@ -19,6 +19,9 @@ public class Product {
     private String name;
     private String description;
     private BigDecimal price;
+    // The Keycloak subject of the seller who owns this product — a plain string
+    // matching how Order.customerId works in order-service, not a cross-service FK.
+    private String sellerId;
     @ManyToOne
     @JoinColumn(name = "category_id")
     private Category category;
