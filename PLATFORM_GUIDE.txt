@@ -1,0 +1,844 @@
+================================================================================
+CLOTH SHOP PLATFORM
+Internal engineering reference — architecture, services, tools, commands,
+and setup guide for the Cloth Shop multi-vendor marketplace.
+================================================================================
+
+A multi-vendor clothing marketplace: ten independently-deployable Spring Boot
+services behind one gateway, a Kafka-choreographed checkout saga,
+Keycloak-issued identity, and a Next.js storefront.
+
+  10  Spring Boot services
+  1   Next.js storefront
+  4   Kafka saga topics
+  3   Realm roles (customer / seller / admin)
+  16  Build phases shipped
+
+
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+  01. Overview
+  02. Services
+  03. Auth & Roles
+  04. Checkout Saga
+  05. Frontend
+  06. Infrastructure & Ports
+  07. Tools & Stack
+  08. Commands
+  09. Getting Started
+  10. Environment & Secrets
+  11. Monitoring
+  12. Testing & CI
+  13. Gotchas
+  14. Build History
+  15. Locked Decisions
+
+
+================================================================================
+01. OVERVIEW
+================================================================================
+
+Three audiences shop this platform: CUSTOMERS browse and buy, SELLERS list
+products and get paid out, ADMINS moderate the marketplace and approve
+sellers. All three are Keycloak identities distinguished only by a realm
+role — there's no separate seller or admin identity system.
+
+--------------------------------------------------------------------------------
+Request flow: gateway is the only trust boundary
+--------------------------------------------------------------------------------
+
+  Browser  <---- PKCE sign-in / JWT (realm_access.roles claim) ---->  Keycloak
+     |                                                              (realm: micro)
+     | Authorization: Bearer <JWT>
+     v
+  api-gateway  <-- the ONLY JWT checkpoint in the whole system
+     | unpacks realm_access.roles into ROLE_* authorities
+     | forwards X-User-Id / X-User-Roles headers (JWT stops here)
+     v
+  ---------------------------------------------------------
+  product-service | order-service | payment-service |
+  seller-service  | customer-service | cart-service
+  (no Spring Security dependency in any of them)
+  ---------------------------------------------------------
+
+The JWT is validated exactly once, at api-gateway. Every service behind it
+authorizes off forwarded headers, not tokens. UserContextGatewayFilter strips
+any inbound X-User-Id/X-User-Roles values first, so a client can't spoof them
+by calling a service directly.
+
+--------------------------------------------------------------------------------
+Three roles, one identity system
+--------------------------------------------------------------------------------
+
+  ROLE      GRANTED                          CAN DO
+  --------  -------------------------------  --------------------------------
+  customer  Default on sign-up               Browse, buy, review purchased
+                                              products, request refunds,
+                                              register as a seller
+
+  seller    Admin approves a PENDING seller  Everything a customer can, plus:
+            registration                     list/edit/delete own products,
+                                              fulfill own order lines, see
+                                              own payouts
+
+  admin     Provisioned manually in Keycloak Manage categories, approve/
+                                              suspend sellers, view every
+                                              order, everything else
+
+
+================================================================================
+02. SERVICES
+================================================================================
+
+Ten independent Maven projects under services/ — no aggregator POM, each
+built and run separately. Every service follows the same package layout:
+controller, service + service/serviceImpl, repository, entity or document,
+dto, mapper, handler (GlobalExceptionHandler). The exception package is
+spelled "exception" everywhere except customer-service and product-service,
+which kept an original typo ("exeption") — match whichever a given service
+already uses.
+
+--------------------------------------------------------------------------------
+discovery-service                                                       :8761
+--------------------------------------------------------------------------------
+Eureka server. Every other service registers here on boot. Nothing calls it
+directly except for service discovery.
+
+--------------------------------------------------------------------------------
+config-server                                                            :8888
+--------------------------------------------------------------------------------
+Spring Cloud Config. Centralized application.yml per profile, backed by an
+external git repo (e-com-app-config) — not part of this working directory.
+Every other service does optional:configserver:http://localhost:8888 on
+boot; being "optional", a service still starts (on its own local defaults)
+if config-server is unreachable.
+
+--------------------------------------------------------------------------------
+api-gateway                                            :8222   Entry point
+--------------------------------------------------------------------------------
+Spring Cloud Gateway, OAuth2 resource server validating JWTs against
+Keycloak. The ONLY place a JWT gets validated — see section 03.
+UserContextGatewayFilter forwards X-User-Id / X-User-Roles downstream,
+stripping any inbound values first. Also carries CORS, a Redis-backed rate
+limiter (20 req/s, burst 40), a circuit breaker + retry (GET only), and its
+own /actuator/prometheus for scraping.
+
+NOTE: the route table itself lives entirely in the external
+e-com-app-config repo — nothing in this working directory defines a single
+gateway route.
+
+--------------------------------------------------------------------------------
+customer-service                                          :8091   MongoDB
+--------------------------------------------------------------------------------
+Customer + address documents. Called synchronously by order-service
+(CustomerClient, Feign) to validate a customer exists before an order is
+created — the one required cross-service call the checkout saga still makes
+before going async.
+
+--------------------------------------------------------------------------------
+product-service                                          :8050   Postgres
+--------------------------------------------------------------------------------
+The catalog. A Product (name / description / price / category / sellerId)
+has many ProductVariants (sku / size / color / availableQuantity,
+optimistic-locked via @Version) — variants are the purchasable, stock-
+tracked unit, not the product itself.
+
+  GET    /api/v1/products                    public; ?sellerId= for "my catalog"
+  POST   /api/v1/products                    seller/admin, ownership-checked
+  PUT    /api/v1/products/{id}                owner or admin only
+  DELETE /api/v1/products/{id}                owner or admin only
+  GET    /api/v1/categories                  public reads, admin-only writes;
+                                              non-empty category can't be deleted
+  POST   /api/v1/products/{id}/images/upload-url
+                                              presigned MinIO PUT URL; bytes
+                                              never touch this service
+  POST   /api/v1/products/{id}/images        registers the uploaded object as
+                                              a ProductImage row
+  POST   /api/v1/products/{id}/reviews       gated on verified purchase, not
+                                              a role
+  GET    /api/v1/products/{id}/reviews       public
+
+Reviews are gated by a Feign call to order-service's internal
+purchased-variants endpoint, cross-referenced against the product's own
+variant ids — FAILS CLOSED if order-service is unreachable, so an outage
+can never manufacture fake social proof. averageRating / reviewCount are
+null/0 (no badge shown) for unreviewed products — never fabricated.
+
+--------------------------------------------------------------------------------
+seller-service                            :8095   Postgres, Keycloak Admin
+                                                    API, Stripe Connect
+--------------------------------------------------------------------------------
+Seller (keycloakUserId, business profile, SellerStatus
+PENDING/ACTIVE/SUSPENDED, Stripe Connect fields).
+
+  POST   /api/v1/sellers/register            any authenticated user
+  PATCH  /api/v1/sellers/{id}/status         admin; ACTIVE grants the
+                                              Keycloak seller role,
+                                              SUSPENDED revokes it
+  POST   /api/v1/sellers/me/stripe/onboarding-link
+                                              creates a Stripe Express
+                                              account on first call
+  POST   /api/v1/sellers/webhooks/stripe     signature-verified, not
+                                              JWT-authenticated — Stripe
+                                              calls it directly
+  GET    /api/v1/sellers/lookup/{keycloak-user-id}
+                                              internal only, Feign —
+                                              payment-service calls this
+                                              during payout settlement
+
+--------------------------------------------------------------------------------
+order-service                                  :8070   Postgres   Saga orchestrator
+--------------------------------------------------------------------------------
+Order + order-line orchestration. POST /api/v1/orders validates the
+customer synchronously (Feign), persists the order as PENDING_PAYMENT, then
+hands off to the async saga — see section 04.
+
+  POST   /api/v1/orders                      honors Idempotency-Key header
+  GET    /api/v1/orders/mine                 customer-scoped, off X-User-Id
+  GET    /api/v1/orders                      unfiltered — ROLE_ADMIN only
+  POST   /api/v1/orders/{id}/refund          owner or admin; the one
+                                              synchronous order->payment call
+  PATCH  /api/v1/order-lines/{id}/fulfillment
+                                              seller/admin; moves the line to
+                                              SHIPPED/DELIVERED, Order.status
+                                              derives from all lines
+  GET    /api/v1/order-lines/mine            a seller's own lines across
+                                              every order
+  GET    /api/v1/order-lines/purchased-variants/{customer-id}
+                                              internal only — product-
+                                              service's review gate calls
+                                              this
+  GET    /api/v1/coupons/preview             any authenticated user; admin
+                                              CRUD on the rest of /coupons
+
+--------------------------------------------------------------------------------
+payment-service                                          :8060   Postgres, Stripe
+--------------------------------------------------------------------------------
+Charges via Stripe (StripePaymentService), triggered off the saga.
+stripe.secret-key reads STRIPE_SECRET_KEY — empty by default, so charges
+fail closed with a clear reason until a real test key is configured. On a
+successful charge, also writes one SellerPayout ledger row per seller in
+the order (gross / commission / net, default 10% commission).
+
+  GET    /api/v1/payouts                     sellers see only their own;
+                                              admins see all
+  POST   /api/v1/payouts/settle               admin, or a daily @Scheduled
+                                              job — moves money via Stripe
+                                              Transfer
+  POST   /api/v1/payments/refund             called by order-service, not
+                                              the browser
+
+--------------------------------------------------------------------------------
+notification-service                                      :8040   MongoDB
+--------------------------------------------------------------------------------
+Consumes Kafka events to send emails (Spring Mail + Thymeleaf, tested
+locally against MailDev). Payment emails are guarded on success — a failed
+payment is logged, never emailed.
+
+--------------------------------------------------------------------------------
+cart-service                                         port unconfirmed, Redis
+--------------------------------------------------------------------------------
+A cart:{userId} Redis hash keyed by variant id — no JPA/Mongo at all.
+POST /api/v1/cart/{userId}/checkout calls order-service via Feign and
+clears the cart on success.
+
+
+================================================================================
+03. AUTH & ROLES
+================================================================================
+
+Keycloak realm "micro", three realm roles (customer default, seller,
+admin), provisioned once via keycloak/setup-realm-roles.sh (idempotent).
+
+Becoming a seller:
+  1. POST /api/v1/sellers/register (any signed-in user) -> seller-service
+     creates a PENDING Seller row.
+  2. An admin calls PATCH /api/v1/sellers/{id}/status with ACTIVE.
+  3. seller-service calls Keycloak's Admin API to grant the seller realm
+     role.
+  4. The user's NEXT token — not their current one, roles are baked in at
+     token-issue time — carries ROLE_SELLER.
+
+WHY HEADERS, NOT RE-VALIDATED TOKENS:
+Downstream services do not validate JWTs themselves — there's no Spring
+Security dependency in product-service, order-service, seller-service, etc.
+at all. This avoids duplicating OAuth2 resource-server config into nine
+more services; the tradeoff is that every one of them trusts the gateway
+completely, which is exactly why the gateway strips inbound
+X-User-Id/X-User-Roles before setting its own.
+
+Provisioning scripts (keycloak/):
+  setup-realm-roles.sh            The three realm roles
+  setup-nextjs-client.sh          Public PKCE client "nextjs-storefront"
+                                  (auth code + PKCE, no secret)
+  setup-seller-service-client.sh  Confidential client seller-service
+                                  authenticates to Keycloak's Admin API as —
+                                  needs manage-users, view-users, AND
+                                  view-realm on realm-management
+
+
+================================================================================
+04. CHECKOUT SAGA
+================================================================================
+
+order-service -> product-service -> payment-service -> back to
+order-service, choreographed over Kafka and correlated by orderReference
+(a string — deliberately NOT the numeric order id, which is technically
+client-suppliable on the request and so can't be trusted as a correlation
+key).
+
+--------------------------------------------------------------------------------
+Happy path
+--------------------------------------------------------------------------------
+
+  order-service           product-service           payment-service           order-service
+  PENDING_PAYMENT   --->   reserve stock      --->    charge (Stripe)   --->    CONFIRMED
+                   order-created-topic       stock-topic              payment-topic
+
+  product-service also fans stock-topic back to order-service to backfill
+  each OrderLine.sellerId and trigger the order-confirmation email
+  (order-topic).
+
+--------------------------------------------------------------------------------
+Failure / compensation paths
+--------------------------------------------------------------------------------
+
+  product-service reserve stock --[stock-topic: failure]--> order-service: CANCELLED
+    (nothing to release — reservation never succeeded)
+
+  payment-service charge --[payment-topic: failure]--> order-service: PAYMENT_FAILED
+    order-service: PAYMENT_FAILED --[stock-release-topic]--> product-service: release stock
+    (compensation — reuses the SAME topic/consumer that refunds also use)
+
+--------------------------------------------------------------------------------
+Topics
+--------------------------------------------------------------------------------
+
+  TOPIC                  PUBLISHER        CONSUMER(S)                  PAYLOAD
+  ----------------------  ---------------  ---------------------------  ------------------------------
+  order-created-topic     order-service    product-service              OrderCreatedEventDTO — customer,
+                                                                         requested variants, amount,
+                                                                         payment method, optional
+                                                                         stripePaymentMethodId
+  stock-topic             product-service  order-service,               StockReservationResultEventDTO —
+                                            payment-service              success/failure, resolved
+                                                                         product/variant details, each
+                                                                         line's sellerId
+  payment-topic           payment-service  order-service,               success/reason fields
+                                            notification-service
+  stock-release-topic     order-service    product-service              StockReleaseEventDTO — reused for
+                                                                         both payment-failure compensation
+                                                                         AND refund compensation
+  order-topic              order-service    notification-service         order-confirmation email trigger
+
+REAL LIMITATION, NOT FIXED YET: no consumer-side dedup for redelivered
+Kafka messages — at-least-once delivery could in theory double-reserve or
+double-charge on redelivery. Each service keeps its own local copy of the
+shared event DTOs (no shared library between services); field names must
+match what the producer actually emits, since Jackson silently drops
+unmatched fields rather than erroring.
+
+IDEMPOTENCY for the initial HTTP call: POST /api/v1/orders honors an
+Idempotency-Key header, unique-constrained on Order.idempotencyKey — a
+repeated key returns the existing order id without repeating the customer
+check or re-publishing the created event.
+
+
+================================================================================
+05. FRONTEND
+================================================================================
+
+frontend/ is a separate Next.js 16 app (App Router, Turbopack, TypeScript,
+Tailwind) — not a Maven service. It's the ONLY client of api-gateway;
+nothing else in the repo calls the gateway from outside.
+
+--------------------------------------------------------------------------------
+Route map
+--------------------------------------------------------------------------------
+
+  ROUTE                    ACCESS                          PURPOSE
+  ------------------------  ------------------------------  --------------------------------
+  /                         Public                          Catalog, search, category filter
+  /products/[id]            Public                          PDP — variants, reviews, JSON-LD
+                                                              structured data
+  /wishlist                 Public (client-only)             localStorage, no backend
+  /cart, /checkout/[orderId] Signed-in                       Cart + post-checkout order status
+  /orders                   Signed-in                        Customer's own orders + refund
+  /seller/*                 Signed-in, SellerStatusGate      overview, products, orders
+                                                              (fulfillment), payouts, onboarding
+  /admin/*                  Signed-in, AdminGate             categories, sellers (moderation),
+                                                              orders (read-only)
+
+--------------------------------------------------------------------------------
+Key modules
+--------------------------------------------------------------------------------
+
+  src/auth.ts        NextAuth v5 with a Keycloak PKCE public client. Decodes
+                      realm_access.roles out of the access token into
+                      session.roles (no verification needed — the token was
+                      already validated by Keycloak issuing it, and every
+                      backend call re-validates it anyway).
+  src/proxy.ts        Next 16 renamed middleware.ts; gates /cart,
+                      /checkout, /account, /orders, /seller, /admin.
+  src/lib/api.ts      The only place that calls the gateway. Catalog reads
+                      are public; everything else needs the session's
+                      access token.
+  src/lib/actions.ts  Server Actions for every mutation (cart, checkout,
+                      reviews, fulfillment, admin writes) — no client-side
+                      fetch for mutations.
+  src/lib/seo.ts,     Site metadata, a catalog-driven sitemap that degrades
+  sitemap.ts,         to just the homepage on fetch failure, and a robots
+  robots.ts           file that disallows everything auth-gated.
+
+GOTCHA — if you touch src/auth.ts or the next-auth .d.ts: TypeScript module
+augmentation for next-auth/next-auth/jwt is fragile — the augmenting .d.ts
+needs its own "export {}" or it becomes an ambient script that REPLACES the
+real module's types instead of merging with them. Both next-auth/jwt AND
+@auth/core/jwt need the same fields augmented, since @auth/core's callback
+signatures import JWT from the latter internally.
+
+NOTE — this is not the Next.js you know: Next 16 has real breaking changes
+from most training data: renamed proxy.ts, fetch no longer cached by
+default, params/searchParams are Promises. Check
+frontend/node_modules/next/dist/docs/ before assuming an API.
+
+
+================================================================================
+06. INFRASTRUCTURE & PORTS
+================================================================================
+
+docker-compose.yml at the repo root brings up everything the services
+depend on. The 10 Spring Boot services themselves are NOT containerized —
+they run on the host via mvn spring-boot:run / java -jar. Only infra lives
+in Docker.
+
+  COMPONENT        PORT             NOTES
+  ---------------  ---------------  --------------------------------------
+  Postgres         5432             user/pass from POSTGRES_USER/PASSWORD
+  pgAdmin          8087
+  MongoDB          27017            user/pass from MONGO_ROOT_USER/PASSWORD
+  mongo-express    8081
+  Kafka            9092             + Zookeeper 22181
+  Redis            6379             cart-service + gateway rate limiter
+  MailDev          10081 / 1025     UI / SMTP
+  Zipkin           9411             distributed tracing
+  Keycloak         8080             realm "micro", start-dev mode
+  MinIO            9000 / 9001      API / console — product-images bucket
+                                    auto-created, public-read
+  Prometheus       9090             scrapes host-run services via
+                                    host.docker.internal
+  Grafana          4000             moved off 3001 — see Gotchas
+  kafka-exporter   9308             Kafka consumer-lag metrics
+  Frontend (dev)   3000             npm run dev
+
+Service ports (host-run):
+
+  SERVICE                PORT
+  ----------------------  --------------------
+  discovery-service       8761
+  config-server           8888
+  api-gateway              8222
+  customer-service         8091
+  product-service          8050
+  seller-service            8095
+  order-service             8070
+  payment-service           8060
+  notification-service      8040
+  cart-service               unconfirmed — see Gotchas
+
+STARTUP ORDER MATTERS: config-server -> discovery-service, then the rest.
+
+  Bring up all infra:
+    docker compose up -d
+
+
+================================================================================
+07. TOOLS & STACK
+================================================================================
+
+  LAYER               TOOLS
+  -------------------  --------------------------------------------------
+  Backend runtime      Java 21, Spring Boot 3.5.13, Spring Cloud 2025.0.2
+  Service mesh         Eureka (discovery), Spring Cloud Config, Spring
+                        Cloud Gateway, OpenFeign, Resilience4j
+  Messaging            Apache Kafka (choreographed saga)
+  Data stores          Postgres (JPA/Hibernate), MongoDB (Spring Data
+                        Mongo), Redis (cart, rate limiting)
+  Identity             Keycloak (OIDC/OAuth2, PKCE), realm roles
+  Payments             Stripe (charges + Stripe Connect Express for
+                        seller payouts)
+  Object storage       MinIO (S3-compatible, self-hosted) for product
+                        images
+  Observability        Micrometer + Prometheus, Grafana, kafka-exporter,
+                        Zipkin tracing
+  Frontend             Next.js 16 (App Router, Turbopack), TypeScript,
+                        Tailwind CSS, NextAuth v5
+  Testing              JUnit 5 + Mockito (unit), Testcontainers (Postgres
+                        + Kafka integration), Playwright (e2e)
+  CI                   Jenkins (declarative Verify stage + shared-lib
+                        buildService)
+  Email (dev)          MailDev (SMTP catcher) + Thymeleaf templates
+
+
+================================================================================
+08. COMMANDS
+================================================================================
+
+--------------------------------------------------------------------------------
+Backend — per service, from inside services/<name>/
+--------------------------------------------------------------------------------
+There is no root aggregator POM — every command below runs from inside one
+service's directory.
+
+  mvn clean install                       # build + test
+  mvn test                                 # run all tests for this service
+  mvn test -Dtest=ClassName#methodName     # run a single test
+  mvn verify                               # test + Testcontainers integration
+                                            # tests (what CI runs)
+  mvn spring-boot:run                      # run the service locally
+
+order-service only: saga/OrderSagaIntegrationTest.java spins up real
+Postgres + Kafka via Testcontainers — needs Docker running locally. Run it
+alone with: mvn test -Dtest=OrderSagaIntegrationTest
+
+--------------------------------------------------------------------------------
+Frontend — from inside frontend/
+--------------------------------------------------------------------------------
+
+  npm run dev              # local dev server, :3000
+  npm run build             # production build
+  npm run lint               # ESLint
+  npx tsc --noEmit            # type-check only
+  npm run test:e2e             # Playwright — needs `npx playwright install
+                                # chromium` once first
+
+Copy .env.local.example to .env.local before first run.
+e2e/customer-checkout.spec.ts / e2e/seller-flow.spec.ts additionally need
+E2E_CUSTOMER_USERNAME/PASSWORD and E2E_SELLER_USERNAME/PASSWORD for seeded
+Keycloak test accounts — they skip without them.
+
+--------------------------------------------------------------------------------
+Infrastructure
+--------------------------------------------------------------------------------
+
+  docker compose up -d                              # bring up everything
+  docker compose up -d --force-recreate zookeeper kafka
+                                                      # fixes stale-ephemeral-
+                                                      # node Kafka/ZK issues
+  docker compose config -q                           # validate the compose
+                                                      # file (no daemon needed)
+
+--------------------------------------------------------------------------------
+Keycloak one-time setup
+--------------------------------------------------------------------------------
+
+  docker compose up -d keycloak
+  cd keycloak
+  KEYCLOAK_ADMIN_USER=admin KEYCLOAK_ADMIN_PASSWORD=admin ./setup-realm-roles.sh
+  KEYCLOAK_ADMIN_USER=admin KEYCLOAK_ADMIN_PASSWORD=admin ./setup-nextjs-client.sh
+  KEYCLOAK_ADMIN_USER=admin KEYCLOAK_ADMIN_PASSWORD=admin ./setup-seller-service-client.sh
+
+
+================================================================================
+09. GETTING STARTED
+================================================================================
+
+A first-run checklist, in order. Each step depends on the one before it.
+
+  1. Copy env files. Root .env.example -> .env; frontend/.env.local.example
+     -> frontend/.env.local. Fill in GITHUB_TOKEN if you need config-server
+     to reach the external config repo (it's optional:, so this can wait).
+
+  2. Bring up infra. docker compose up -d from the repo root.
+
+  3. Provision Keycloak — run the three keycloak/*.sh scripts above, once,
+     against the now-running Keycloak.
+
+  4. Start config-server, then discovery-service. Order matters — both
+     from their own services/<name>/ directory: mvn spring-boot:run.
+
+  5. Start the remaining 8 services (any order, but give each a moment to
+     register with Eureka): customer, product, seller, order, payment,
+     notification, cart, api-gateway.
+
+  6. Start the frontend. cd frontend && npm install && npm run dev, then
+     visit http://localhost:3000.
+
+  7. Walk the golden path: sign in -> browse -> add to cart -> checkout.
+     Register as a seller, approve yourself as admin in Keycloak, list a
+     product, buy it from a second account, fulfill the order, watch a
+     payout appear.
+
+WATCHING IT WORK: MailDev (:10081) shows every email the saga sends.
+Zipkin (:9411) traces a request across services. Grafana (:4000) has a
+pre-built dashboard once Prometheus has scraped at least one request
+through the saga.
+
+
+================================================================================
+10. ENVIRONMENT & SECRETS
+================================================================================
+
+Every credential across the stack is documented in root .env.example.
+docker compose auto-loads a root .env for the containers — but since the
+10 services aren't containerized, running one via mvn spring-boot:run
+needs the relevant variables exported in that shell/IDE run config too.
+.env doesn't reach them automatically.
+
+  VARIABLE                        USED BY                          DEFAULT
+  -------------------------------  --------------------------------  ------------------
+  POSTGRES_USER / PASSWORD         Postgres container                rajitha / rajitha
+  MONGO_ROOT_USER / PASSWORD       MongoDB + mongo-express            rajitha / rajitha
+  KEYCLOAK_ADMIN_USER / PASSWORD   Keycloak bootstrap admin, all       admin / admin
+                                   setup scripts
+  GRAFANA_ADMIN_USER / PASSWORD    Grafana container                  admin / admin
+  GITHUB_TOKEN                     config-server -> external config   empty
+                                   repo
+  STRIPE_SECRET_KEY                payment-service, seller-service    empty (fails closed)
+  STRIPE_CONNECT_WEBHOOK_SECRET    seller-service webhook verification empty
+  KEYCLOAK_ADMIN_CLIENT_SECRET     seller-service -> Keycloak Admin    empty
+                                   API
+  PLATFORM_COMMISSION_RATE         payment-service payout math         0.10
+  NEXT_PUBLIC_API_GATEWAY_URL      frontend -> gateway                 http://localhost:8222
+  NEXT_PUBLIC_SITE_URL             frontend SEO (sitemap, canonical,   http://localhost:3000
+                                   OG)
+  NEXT_PUBLIC_GRAFANA_URL          admin dashboard's Grafana link      http://localhost:4000
+
+Root .gitignore excludes .env/.env.local — only the .example files are
+ever committed.
+
+
+================================================================================
+11. MONITORING
+================================================================================
+
+micrometer-registry-prometheus on all 10 services, exposing
+/actuator/prometheus. Two hand-instrumented business counters sit at the
+saga's actual decision points — not just auto-instrumented HTTP/JVM
+metrics.
+
+  METRIC                          WHERE             MEANING
+  -------------------------------  ----------------  ------------------------------
+  stock_reservation_total{result}  product-service    Checkout reserves stock vs.
+                                                       loses to a stockout /
+                                                       optimistic-lock race
+  payment_charge_total{result}     payment-service    A reserved-stock order
+                                                       charges successfully vs.
+                                                       fails at Stripe
+
+The pre-built Grafana dashboard
+(monitoring/grafana/dashboards/ecommerce-overview.json) also graphs
+gateway request rate and 5xx rate by route, JVM heap per service, Kafka
+consumer lag by group, HikariCP active connections, and service uptime.
+
+NOTE — no alerting: Prometheus + Grafana are wired for dashboards and
+exploration, not paging — no Alertmanager, no alert rules configured.
+
+
+================================================================================
+12. TESTING & CI
+================================================================================
+
+Three layers, deliberately not collapsed into one: fast Mockito unit tests
+everywhere, one Testcontainers-backed integration test for the saga's most
+critical wiring, and Playwright e2e specs for the browser-facing golden
+paths.
+
+UNIT TESTS: mapper tests + service-impl tests (Mockito/MockitoBean) per
+service, plus one *ApplicationTests context-load test each.
+
+INTEGRATION TEST: order-service/.../saga/OrderSagaIntegrationTest.java —
+real Postgres 16 + real Kafka (both Testcontainers), the actual
+@KafkaListener beans, real JSON (de)serialization, real DB transactions.
+Proves the wiring between consumers actually works, which a mocked unit
+test structurally can't. Scoped to order-service (the saga orchestrator)
+as the demonstrated pattern — the same @DynamicPropertySource +
+@MockitoBean approach transfers directly to product-service/payment-
+service if extended.
+
+END-TO-END (Playwright):
+
+  SPEC                            COVERS
+  -------------------------------  --------------------------------------
+  e2e/catalog.spec.ts              Homepage loads or degrades gracefully,
+                                    search narrows results, PDP opens
+  e2e/auth-gates.spec.ts           Every gated route actually redirects
+                                    an anonymous visitor to Keycloak
+  e2e/customer-checkout.spec.ts    Sign in -> add to cart -> reach
+                                    checkout (needs E2E_CUSTOMER_*
+                                    credentials)
+  e2e/seller-flow.spec.ts          Active seller reaches overview +
+                                    orders-to-fulfill (needs E2E_SELLER_*
+                                    credentials)
+
+CI PIPELINE: all 10 services' Jenkinsfiles run an explicit
+"mvn -B verify" stage before the shared-lib buildService(...) call, so a
+test failure fails the pipeline regardless of what that external step does
+internally. frontend/Jenkinsfile (new): install -> lint -> type-check ->
+build -> Playwright smoke.
+
+
+================================================================================
+13. GOTCHAS
+================================================================================
+
+Real bugs and environment traps found while building this — worth knowing
+before you hit them yourself.
+
+--- Gateway's own actuator endpoint 401'd Prometheus's scrape [FIXED] -----
+SecurityConfiguration's anyExchange().authenticated() catch-all applies to
+api-gateway's own local endpoints, not just proxied traffic —
+/actuator/prometheus had no permitAll() matcher, so Prometheus's scrape
+request got a 401. Fixed with a .pathMatchers("/actuator/**").permitAll()
+matcher ahead of the catch-all.
+
+--- exchange.getPrincipal() is empty inside a Gateway GlobalFilter --------
+Even on a fully-authenticated request, it reads empty. Use
+ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
+instead — backed by the Reactor Context Spring Security actually writes
+into.
+
+--- RestClient/WebClient URI templates percent-encode a full base URL ----
+.uri("{var}/path", value) percent-encodes whatever value is — including
+":"/"/" and, for an IPv6 literal host, even "["/"]". Build the full URL as
+a string and pass .uri(URI.create(fullUrl)) instead.
+
+--- Keycloak's admin-cli client issues near-empty tokens ------------------
+No sub, no realm_access — just exp/iat/azp/scope. Get a test token from a
+client with the default full scope set (like nextjs-storefront) instead,
+or you'll chase phantom "missing X-User-Id" bugs that are actually just a
+bad test token.
+
+--- Gateway routing lives entirely outside this repo ----------------------
+spring.cloud.gateway.routes is defined only in the external
+e-com-app-config repo — services/api-gateway/src/main/resources/
+application.yml defines zero routes. Adding a new service means adding its
+route there (or a local scratch override for testing).
+
+--- product-service's Flyway migrations are stale — don't trust them ------
+db/migration/V1/V2 predate the ProductVariant/sellerId/Category-CRUD/
+ProductImage schema entirely. Every schema change relies on Hibernate
+ddl-auto: update instead; local scratch configs explicitly set
+spring.flyway.enabled: false. Don't add new migrations without first
+reconciling the existing ones.
+
+--- Windows Hyper-V reserves TCP port ranges Docker can't bind ------------
+netsh interface ipv4 show excludedportrange protocol=tcp shows them — port
+3001 fell inside one, so Grafana moved to 4000. If a container's host port
+mysteriously refuses to bind with a permissions-flavored error, check this
+before assuming a Docker bug.
+
+--- After a Docker Desktop crash, Kafka can fail to rejoin Zookeeper ------
+org.apache.zookeeper.KeeperException$NodeExistsException — a stale
+ephemeral broker-registration znode from before the crash. A plain restart
+isn't enough since it reuses the same container state; fix with:
+docker compose up -d --force-recreate zookeeper kafka
+
+--- Playwright's browser binary downloads from a CDN, not npm ------------
+npx playwright install chromium pulls from cdn.playwright.dev — if that's
+blocked or heavily rate-limited on a given network, the specs still
+type-check and lint clean, but npm run test:e2e can't actually run until
+the browser lands some other way.
+
+--- Package naming: "exception" vs. "exeption" ----------------------------
+Every service uses "exception" except customer-service and product-
+service, which kept an original typo ("exeption"). Match the existing
+spelling within a given service rather than "fixing" it as a drive-by.
+
+--- Only touch stock math in one place -------------------------------------
+Don't add stock-decrement/refund logic anywhere except
+ProductServiceIMPL.purchaseProductService/releaseStock — the saga's
+stock-topic/stock-release-topic consumers call straight into these, so
+that's the one place "how do we mutate ProductVariant.availableQuantity"
+should live.
+
+
+================================================================================
+14. BUILD HISTORY
+================================================================================
+
+Sixteen phases, each shipped with its own tests and live verification.
+Order carries real information here — each phase built directly on the one
+before it.
+
+  0-5   Foundation
+        Variant-aware catalog, order-state machine, Kafka saga replacing
+        synchronous checkout, Redis cart, gateway hardening (CORS/rate-
+        limit/circuit-breaker), the Next.js storefront itself.
+
+  6     Marketplace foundation
+        seller-service, Keycloak realm roles, product ownership checks,
+        category CRUD, gateway role-based routing.
+
+  7     Seller-aware saga & payouts
+        sellerId threaded through the saga, SellerPayout ledger, Stripe
+        Connect onboarding + settlement.
+
+  8     Order lifecycle
+        Fulfillment states, refunds, customer-scoped order history,
+        coupons.
+
+  9     Product images
+        MinIO, presigned-upload flow, seller dashboard seed.
+
+  10    Reviews & ratings
+        Verified-purchase gate across services, aggregate ratings,
+        fail-closed on outage.
+
+  11    Seller dashboard
+        Overview, orders-to-fulfill, shared status gate.
+
+  12    Admin dashboard
+        Categories, seller moderation, all-orders view.
+
+  13    Observability
+        Prometheus + Grafana + kafka-exporter, business metrics at saga
+        decision points.
+
+  14    SEO
+        Dynamic metadata, JSON-LD structured data, sitemap/robots.
+
+  15    Secrets hardening
+        Root .env.example, parameterized docker-compose credentials, root
+        .gitignore.
+
+  16    Testing & CI
+        Testcontainers saga test, Playwright e2e, mvn verify in every
+        Jenkinsfile, new frontend Jenkinsfile.
+
+
+================================================================================
+15. LOCKED DECISIONS
+================================================================================
+
+Architectural calls made deliberately, not defaults — revisit only with a
+real reason.
+
+  - Multi-vendor, not single-seller-admin. Sellers are Keycloak users
+    holding a role, not a separate identity system.
+
+  - No order-splitting. A checkout can mix products from multiple
+    sellers; one Order, one Stripe charge, OrderLine.sellerId carries the
+    split.
+
+  - Payouts via Stripe Connect "separate charges and transfers." One
+    platform charge, then per-seller Transfers off a flat commission
+    rate — not real-time split payments.
+
+  - Gateway is the only trust boundary. Downstream services authorize off
+    forwarded headers, never re-validate a JWT.
+
+  - MinIO, not a live cloud bucket. Self-hosted, local — matches the
+    local/dev-environment scope.
+
+  - Docker Compose / single VM as the hosting target — observability and
+    secrets tooling is scoped to that, not Kubernetes.
+
+  - Flat Category, no hierarchy. Revisit only if the catalog actually
+    grows multi-level.
+
+
+================================================================================
+Cloth Shop Platform — internal engineering reference, generated from the
+codebase's own CLAUDE.md and PLAN.md. Reflects the state after Phase 16.
+================================================================================

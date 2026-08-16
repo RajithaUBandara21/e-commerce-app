@@ -5,6 +5,6 @@ WORKDIR /app
 # Copy built jar from Jenkins workspace
 COPY target/*.jar app.jar
 
-EXPOSE 8050
+EXPOSE 8095
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

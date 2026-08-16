@@ -1,0 +1,342 @@
+# Production/deployment compose file — separate from docker-compose.yml
+# (local Windows dev), which stays untouched. This file containerizes all
+# 10 backend services + the frontend as well as infra, wires them together
+# by Docker service name instead of localhost, and skips
+# discovery-service/config-server (both are optional: dependencies
+# everything else tolerates missing — see CLAUDE.md).
+#
+# Usage (from the VM, after `mvn package -DskipTests` in each services/<name>
+# and populating .env.prod from .env.prod.example — see DEPLOY.md):
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+services:
+  # ---------------- infra ----------------
+
+  postgres:
+    image: postgres:16
+    container_name: prod_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rajitha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rajitha}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rajitha}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:7
+    container_name: prod_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-rajitha}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-rajitha}
+    volumes:
+      - mongo_data:/data/db
+    networks: [backend]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: prod_redis
+    volumes:
+      - redis_data:/data
+    networks: [backend]
+    restart: unless-stopped
+
+  # Bitnami's images (not Confluent's) — Confluent's cp-kafka/cp-zookeeper
+  # images are amd64-only, which breaks on the Ampere ARM VM this file is
+  # meant for. Kafka is internal-only (no `ports:` — nothing outside the
+  # compose network ever talks to it directly), so there's no public
+  # listener to configure at all.
+  zookeeper:
+    image: bitnami/zookeeper:3.9
+    container_name: prod_zookeeper
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    volumes:
+      - zookeeper_data:/bitnami/zookeeper
+    networks: [backend]
+    restart: unless-stopped
+
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: prod_kafka
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:29092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    volumes:
+      - kafka_data:/bitnami/kafka
+    networks: [backend]
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio
+    container_name: prod_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-rajitha}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-rajitha123}
+    ports:
+      - "9000:9000"   # must stay public — presigned upload URLs and product
+      - "9001:9001"   # image URLs point browsers straight at this
+    volumes:
+      - minio_data:/data
+    networks: [backend]
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    container_name: prod_keycloak
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Must be the PUBLIC address — this is what Keycloak stamps into every
+      # token's `iss` claim, and api-gateway's issuer-uri (below) has to match
+      # exactly or JWT validation fails with "invalid issuer".
+      KC_HOSTNAME: http://${DEPLOY_HOST}:8080
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    networks: [backend]
+    restart: unless-stopped
+
+  # ---------------- backend services ----------------
+  # None of these publish a host port — api-gateway is the only entry point
+  # from outside the compose network, matching the app's own gateway-as-
+  # trust-boundary design (see CLAUDE.md).
+
+  customer-service:
+    build: { context: services/customer-service }
+    container_name: prod_customer_service
+    depends_on: [mongodb]
+    environment:
+      SPRING_CONFIG_IMPORT: ""
+      EUREKA_CLIENT_ENABLED: "false"
+      SPRING_DATA_MONGODB_URI: mongodb://${MONGO_ROOT_USER:-rajitha}:${MONGO_ROOT_PASSWORD:-rajitha}@mongodb:27017/customerdb?authSource=admin
+    networks: [backend]
+    restart: unless-stopped
+
+  product-service:
+    build: { context: services/product-service }
+    container_name: prod_product_service
+    depends_on: [postgres, kafka, minio]
+    environment:
+      SPRING_CONFIG_IMPORT: ""
+      EUREKA_CLIENT_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_USER:-rajitha}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-rajitha}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-rajitha}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # Same value for both — presigned URLs are built from `endpoint` (the
+      # MinioClient's own config), so it has to be browser-reachable, not
+      # just container-reachable. See MinioProperties' own doc comment.
+      MINIO_ENDPOINT: http://${DEPLOY_HOST}:9000
+      MINIO_PUBLIC_BASE_URL: http://${DEPLOY_HOST}:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-rajitha}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-rajitha123}
+      APPLICATION_CONFIG_ORDER-URL: http://order-service:8070/api/v1/order-lines
+    networks: [backend]
+    restart: unless-stopped
+
+  seller-service:
+    build: { context: services/seller-service }
+    container_name: prod_seller_service
+    depends_on: [postgres]
+    environment:
+      SPRING_CONFIG_IMPORT: ""
+      EUREKA_CLIENT_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_USER:-rajitha}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-rajitha}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-rajitha}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      # Internal hostname — this is a pure server-to-server Admin API call,
+      # not a browser-facing redirect, so no issuer-matching concern.
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: micro
+      KEYCLOAK_ADMIN_CLIENT_ID: seller-service
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      KEYCLOAK_SELLER_ROLE: seller
+      APPLICATION_CONFIG_FRONTEND-ORIGIN: http://${DEPLOY_HOST}:3000
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_CONNECT_WEBHOOK_SECRET: ${STRIPE_CONNECT_WEBHOOK_SECRET:-}
+    networks: [backend]
+    restart: unless-stopped
+
+  order-service:
+    build: { context: services/order-service }
+    container_name: prod_order_service
+    depends_on: [postgres, kafka, customer-service]
+    environment:
+      SPRING_CONFIG_IMPORT: ""
+      EUREKA_CLIENT_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_USER:-rajitha}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-rajitha}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-rajitha}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      APPLICATION_CONFIG_CUSTOMER-URL: http://customer-service:8091/api/v1/customers
+      APPLICATION_CONFIG_PAYMENT-URL: http://payment-service:8060/api/v1/payments
+    networks: [backend]
+    restart: unless-stopped
+
+  payment-service:
+    build: { context: services/payment-service }
+    container_name: prod_payment_service
+    depends_on: [postgres, kafka, seller-service]
+    environment:
+      SPRING_CONFIG_IMPORT: ""
+      EUREKA_CLIENT_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_USER:-rajitha}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-rajitha}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-rajitha}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      APPLICATION_CONFIG_SELLER-URL: http://seller-service:8095/api/v1/sellers
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+    networks: [backend]
+    restart: unless-stopped
+
+  notification-service:
+    build: { context: services/notification-service }
+    container_name: prod_notification_service
+    depends_on: [mongodb, kafka]
+    environment:
+      SPRING_CONFIG_IMPORT: ""
+      EUREKA_CLIENT_ENABLED: "false"
+      SPRING_DATA_MONGODB_URI: mongodb://${MONGO_ROOT_USER:-rajitha}:${MONGO_ROOT_PASSWORD:-rajitha}@mongodb:27017/notificationdb?authSource=admin
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # No real SMTP configured for this deployment — mail send failures are
+      # caught and logged by the consumer, never fatal to message processing.
+      SPRING_MAIL_HOST: localhost
+      SPRING_MAIL_PORT: 1025
+    networks: [backend]
+    restart: unless-stopped
+
+  cart-service:
+    build: { context: services/cart-service }
+    container_name: prod_cart_service
+    depends_on: [redis, order-service]
+    environment:
+      SPRING_CONFIG_IMPORT: ""
+      EUREKA_CLIENT_ENABLED: "false"
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      APPLICATION_CONFIG_ORDER-URL: http://order-service:8070/api/v1/orders
+    networks: [backend]
+    restart: unless-stopped
+
+  api-gateway:
+    build: { context: services/api-gateway }
+    container_name: prod_api_gateway
+    depends_on: [redis, keycloak, product-service, order-service, payment-service, seller-service, customer-service, cart-service]
+    environment:
+      SPRING_CONFIG_IMPORT: ""
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      APPLICATION_CONFIG_FRONTEND-ORIGIN: http://${DEPLOY_HOST}:3000
+      # Public address — must match the `iss` claim Keycloak stamps into
+      # every token a browser presents here (see keycloak's KC_HOSTNAME above).
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER-URI: http://${DEPLOY_HOST}:8080/realms/micro
+      # Route table — this repo has no aggregator/config-server route source
+      # (see CLAUDE.md's gateway-routing gotcha), so it's expressed here via
+      # Spring's indexed-property env var binding instead of an external repo.
+      SPRING_CLOUD_GATEWAY_ROUTES_0_ID: product-service
+      SPRING_CLOUD_GATEWAY_ROUTES_0_URI: http://product-service:8050
+      SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0: Path=/api/v1/products/**,/api/v1/categories/**
+      SPRING_CLOUD_GATEWAY_ROUTES_1_ID: seller-service
+      SPRING_CLOUD_GATEWAY_ROUTES_1_URI: http://seller-service:8095
+      SPRING_CLOUD_GATEWAY_ROUTES_1_PREDICATES_0: Path=/api/v1/sellers/**
+      SPRING_CLOUD_GATEWAY_ROUTES_2_ID: order-service
+      SPRING_CLOUD_GATEWAY_ROUTES_2_URI: http://order-service:8070
+      SPRING_CLOUD_GATEWAY_ROUTES_2_PREDICATES_0: Path=/api/v1/orders/**,/api/v1/order-lines/**,/api/v1/coupons/**
+      SPRING_CLOUD_GATEWAY_ROUTES_3_ID: payment-service
+      SPRING_CLOUD_GATEWAY_ROUTES_3_URI: http://payment-service:8060
+      SPRING_CLOUD_GATEWAY_ROUTES_3_PREDICATES_0: Path=/api/v1/payments/**,/api/v1/payouts/**
+      SPRING_CLOUD_GATEWAY_ROUTES_4_ID: cart-service
+      SPRING_CLOUD_GATEWAY_ROUTES_4_URI: http://cart-service:8100
+      SPRING_CLOUD_GATEWAY_ROUTES_4_PREDICATES_0: Path=/api/v1/cart/**
+      SPRING_CLOUD_GATEWAY_ROUTES_5_ID: customer-service
+      SPRING_CLOUD_GATEWAY_ROUTES_5_URI: http://customer-service:8091
+      SPRING_CLOUD_GATEWAY_ROUTES_5_PREDICATES_0: Path=/api/v1/customers/**
+    ports:
+      - "8222:8222"
+    networks: [backend]
+    restart: unless-stopped
+
+  # ---------------- frontend ----------------
+
+  frontend:
+    build:
+      context: frontend
+      args:
+        NEXT_PUBLIC_API_GATEWAY_URL: http://${DEPLOY_HOST}:8222
+        NEXT_PUBLIC_SITE_URL: http://${DEPLOY_HOST}:3000
+        NEXT_PUBLIC_GRAFANA_URL: http://${DEPLOY_HOST}:4000
+    container_name: prod_frontend
+    depends_on: [api-gateway]
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_KEYCLOAK_ID: nextjs-storefront
+      AUTH_KEYCLOAK_ISSUER: http://${DEPLOY_HOST}:8080/realms/micro
+      NEXT_PUBLIC_API_GATEWAY_URL: http://${DEPLOY_HOST}:8222
+      NEXT_PUBLIC_SITE_URL: http://${DEPLOY_HOST}:3000
+      NEXT_PUBLIC_GRAFANA_URL: http://${DEPLOY_HOST}:4000
+    ports:
+      - "3000:3000"
+    networks: [backend]
+    restart: unless-stopped
+
+  # ---------------- observability ----------------
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prod_prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [backend]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    container_name: prod_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on: [prometheus]
+    ports:
+      - "4000:3000"
+    networks: [backend]
+    restart: unless-stopped
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  zookeeper_data:
+  kafka_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:

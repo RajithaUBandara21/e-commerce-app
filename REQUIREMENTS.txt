@@ -1,0 +1,183 @@
+================================================================================
+CLOTH SHOP PLATFORM — LIBRARY & DEPENDENCY VERSIONS
+Every version below was read directly from this repo (pom.xml / package.json)
+or resolved via `mvn dependency:tree` / package-lock.json — not guessed.
+================================================================================
+
+
+================================================================================
+BUILD TOOLCHAIN (this machine, at time of writing)
+================================================================================
+
+  TOOL              VERSION
+  ----------------  ------------------------------------------------
+  Java              21.0.5 (Eclipse Temurin, LTS)
+  Maven             3.8.8
+  Node.js           22.14.0
+  npm               11.11.1
+
+Required (from pom.xml / package.json, not just what happens to be installed):
+  Java              21   (<java.version> in every service's pom.xml)
+  Node.js           no explicit "engines" field in frontend/package.json —
+                     Next.js 16 requires Node >=18.18, current LTS recommended
+
+
+================================================================================
+BACKEND — SHARED PLATFORM VERSIONS
+================================================================================
+
+All 10 services share the same parent BOM versions:
+
+  Spring Boot              3.5.13
+  Spring Cloud             2025.0.2
+    -> spring-cloud-starter-config                4.3.2
+    -> spring-cloud-starter-netflix-eureka-*       4.3.2
+    -> spring-cloud-starter-openfeign              4.3.2
+    -> spring-cloud-starter-gateway (api-gateway only)
+
+No aggregator POM — each service pins these independently in its own
+pom.xml <parent>/<properties>, so they're kept in sync by convention, not
+by inheritance. If you bump one service's Spring Boot version, bump all 10.
+
+
+================================================================================
+BACKEND — PER-SERVICE DEPENDENCIES (resolved versions)
+================================================================================
+
+Versions below are RESOLVED (via `mvn dependency:tree`), i.e. what Maven
+actually pulled — not just what a service's pom.xml happens to declare
+explicitly (most versions are inherited from the Spring Boot/Cloud BOM and
+never appear as literal numbers in any pom.xml at all).
+
+--------------------------------------------------------------------------------
+Common across most/all services
+--------------------------------------------------------------------------------
+
+  LIBRARY                                          VERSION
+  ------------------------------------------------  ----------------
+  org.postgresql:postgresql                         42.7.10
+  com.h2database:h2                                 2.3.232   (test/dev fallback DB)
+  org.projectlombok:lombok                          1.18.44
+  org.springframework.kafka:spring-kafka            3.3.14
+  org.apache.kafka:kafka-clients                    3.9.2
+  io.zipkin.reporter2:zipkin-reporter-brave         3.5.3
+  io.micrometer:micrometer-core                     1.15.10
+  io.micrometer:micrometer-registry-prometheus       1.15.10
+  io.micrometer:micrometer-tracing-bridge-brave      1.5.10
+  org.junit.jupiter:junit-jupiter                    5.12.2   (test)
+  org.mockito:mockito-core                           5.17.0   (test)
+
+--------------------------------------------------------------------------------
+order-service (also runs the Testcontainers integration suite)
+--------------------------------------------------------------------------------
+
+  org.testcontainers:testcontainers                  1.21.4   (test)
+  org.testcontainers:junit-jupiter                    1.21.4   (test)
+  org.testcontainers:postgresql                       1.21.4   (test)
+  org.testcontainers:kafka                             1.21.4   (test)
+  org.springframework.boot:spring-boot-testcontainers  3.5.13   (test)
+
+--------------------------------------------------------------------------------
+product-service
+--------------------------------------------------------------------------------
+
+  io.minio:minio                                      8.5.17   (MinIO S3-compatible client)
+  org.flywaydb:flyway-core                             11.7.2   (present but stale — see
+  org.flywaydb:flyway-database-postgresql              11.7.2    CLAUDE.md Gotchas; ddl-auto:
+                                                                  update is what's actually used)
+
+--------------------------------------------------------------------------------
+payment-service / seller-service
+--------------------------------------------------------------------------------
+
+  com.stripe:stripe-java                               33.3.0   (charges, Connect payouts)
+
+--------------------------------------------------------------------------------
+cart-service
+--------------------------------------------------------------------------------
+
+  Redis client comes via spring-boot-starter-data-redis (Boot-managed,
+  Lettuce under the hood) — no explicit version pin in cart-service's pom.xml.
+
+--------------------------------------------------------------------------------
+api-gateway
+--------------------------------------------------------------------------------
+
+  Spring Cloud Gateway + Resilience4j (spring-cloud-starter-circuitbreaker-
+  reactor-resilience4j) — both Boot/Cloud-BOM-managed, no explicit pins.
+
+
+================================================================================
+FRONTEND — package.json (resolved via package-lock.json)
+================================================================================
+
+--------------------------------------------------------------------------------
+dependencies
+--------------------------------------------------------------------------------
+
+  PACKAGE                    DECLARED        RESOLVED
+  --------------------------  --------------  ----------------
+  next                        16.3.1          16.3.1
+  react                       19.2.8          19.2.8
+  react-dom                   19.2.8          19.2.8
+  next-auth                   ^5.0.0-beta.32  5.0.0-beta.32
+  @tanstack/react-query       ^5.101.4        5.101.4
+  lucide-react                ^1.31.0         1.31.0
+
+--------------------------------------------------------------------------------
+devDependencies
+--------------------------------------------------------------------------------
+
+  PACKAGE                    DECLARED  RESOLVED
+  --------------------------  --------  ----------------
+  typescript                  ^5        5.9.3
+  eslint                      ^9        9.39.5
+  eslint-config-next          16.3.1    16.3.1
+  tailwindcss                 ^4        4.3.3
+  @tailwindcss/postcss        ^4        4.3.3
+  @playwright/test            ^1.62.1   1.62.1
+  @types/node                 ^20       20.19.43
+  @types/react                ^19       19.2.18
+  @types/react-dom             ^19       19.2.4
+
+NOTE: this project pins exact versions for next/react/react-dom/eslint-config-
+next (no ^) since those three have to stay in lockstep with each other and
+with the Next.js docs bundled in node_modules/next/dist/docs/ that this
+codebase's own conventions were built against.
+
+
+================================================================================
+INFRASTRUCTURE — docker-compose.yml image versions
+================================================================================
+
+  SERVICE           IMAGE                                    TAG
+  -----------------  ---------------------------------------  ----------------
+  Postgres           postgres                                  latest (untagged)
+  pgAdmin             dpage/pgadmin4                            latest (untagged)
+  MongoDB             mongo                                     latest (untagged)
+  mongo-express       mongo-express                             latest (untagged)
+  Zookeeper           confluentinc/cp-zookeeper                 7.5.0
+  Kafka               confluentinc/cp-kafka                     7.5.0
+  Redis               redis                                     7-alpine
+  MailDev             maildev/maildev                           latest (untagged)
+  MinIO                minio/minio                               latest (untagged)
+  Zipkin               openzipkin/zipkin                         latest (untagged)
+  Keycloak             quay.io/keycloak/keycloak                 26.6.1
+  kafka-exporter        danielqsj/kafka-exporter                  latest (untagged)
+  Prometheus            prom/prometheus                           latest (untagged)
+  Grafana                grafana/grafana                           latest (untagged)
+
+CALLOUT — untagged images: 9 of 14 infra images float on "latest" rather
+than a pinned tag. Fine for local/dev (the documented scope of this whole
+stack — see PLAN.md's locked decisions), but a real production deployment
+should pin every one of these explicitly so a `docker compose pull` can't
+silently change behavior underneath you. Kafka/Zookeeper (7.5.0) and
+Keycloak (26.6.1) are the only ones already pinned, likely because a
+version-specific config quirk was hit for those two at some point.
+
+
+================================================================================
+Generated from this repo's actual pom.xml / package.json / package-lock.json
+/ docker-compose.yml files and `mvn dependency:tree` output — not from
+training-data assumptions about typical version numbers.
+================================================================================
