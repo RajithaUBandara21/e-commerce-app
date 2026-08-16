@@ -3,3 +3,9 @@ spring:
     name: order-service
   config:
     import: optional:configserver:http://localhost:8888
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

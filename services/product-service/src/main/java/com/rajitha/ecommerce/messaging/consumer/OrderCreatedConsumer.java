@@ -5,6 +5,8 @@ import com.rajitha.ecommerce.dto.StockReservationResultEventDTO;
 import com.rajitha.ecommerce.exeption.ProductPurchaseException;
 import com.rajitha.ecommerce.messaging.StockReservationResultProducer;
 import com.rajitha.ecommerce.service.ProductService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -17,6 +19,7 @@ public class OrderCreatedConsumer {
 
     private final ProductService productService;
     private final StockReservationResultProducer stockReservationResultProducer;
+    private final MeterRegistry meterRegistry;
 
     @KafkaListener(topics = "order-created-topic", groupId = "productServiceOrderGroup")
     public void consumeOrderCreated(OrderCreatedEventDTO event) {
@@ -35,6 +38,7 @@ public class OrderCreatedConsumer {
                             .products(purchased)
                             .build()
             );
+            reservationCounter("success").increment();
         } catch (ProductPurchaseException e) {
             log.warn("Stock reservation failed for order <{}> :: {}", event.orderReference(), e.getMessage());
             stockReservationResultProducer.sendStockReservationResult(
@@ -44,6 +48,17 @@ public class OrderCreatedConsumer {
                             .reason(e.getMessage())
                             .build()
             );
+            reservationCounter("failure").increment();
         }
+    }
+
+    // Saga decision point: how often checkout actually reserves stock vs. loses
+    // to a stockout/optimistic-lock race — not derivable from generic HTTP/Kafka
+    // auto-instrumentation, since this is a business outcome, not a technical one.
+    private Counter reservationCounter(String result) {
+        return Counter.builder("stock_reservation_total")
+                .description("Stock reservation attempts from the checkout saga, by result")
+                .tag("result", result)
+                .register(meterRegistry);
     }
 }

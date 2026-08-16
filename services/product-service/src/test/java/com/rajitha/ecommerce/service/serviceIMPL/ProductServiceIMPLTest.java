@@ -12,6 +12,9 @@ import com.rajitha.ecommerce.exeption.ProductPurchaseException;
 import com.rajitha.ecommerce.mapper.ProductMapper;
 import com.rajitha.ecommerce.repository.ProductRepository;
 import com.rajitha.ecommerce.repository.ProductVariantRepository;
+import com.rajitha.ecommerce.service.ProductImageService;
+import com.rajitha.ecommerce.service.ReviewService;
+import com.rajitha.ecommerce.dto.RatingSummaryDTO;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +40,12 @@ class ProductServiceIMPLTest {
 
     @Mock
     private ProductVariantRepository productVariantRepository;
+
+    @Mock
+    private ProductImageService productImageService;
+
+    @Mock
+    private ReviewService reviewService;
 
     @Test
     void shouldSuccessfullyCreateProduct() {
@@ -264,5 +273,22 @@ var productNotExistException = Assertions.assertThrows(
         productServiceIMPL.deleteProduct(1, "seller-1", false);
 
         Mockito.verify(productRepository).delete(product);
+    }
+
+    @Test
+    void shouldIncludeImageUrlsWhenFindingProductById() {
+        Product product = Product.builder().id(1).sellerId("seller-1")
+                .category(Category.builder().id(1).build()).build();
+        var imageUrls = List.of("http://localhost:9000/product-images/products/1/a.jpg");
+        var responseDTO = com.rajitha.ecommerce.dto.ProductResponseDTO.builder().id(1).imageUrls(imageUrls).build();
+
+        Mockito.when(productRepository.findById(1)).thenReturn(java.util.Optional.of(product));
+        Mockito.when(productImageService.findImageUrlsByProductId(1)).thenReturn(imageUrls);
+        Mockito.when(reviewService.getRatingSummary(1)).thenReturn(RatingSummaryDTO.EMPTY);
+        Mockito.when(productMapper.toProductResponseDTO(product, imageUrls, RatingSummaryDTO.EMPTY)).thenReturn(responseDTO);
+
+        var result = productServiceIMPL.findProductById(1);
+
+        assertEquals(imageUrls, result.imageUrls());
     }
 }

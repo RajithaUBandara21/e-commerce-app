@@ -7,11 +7,13 @@ import com.rajitha.ecommerce.dto.StockReservationResultEventDTO;
 import com.rajitha.ecommerce.exeption.ProductPurchaseException;
 import com.rajitha.ecommerce.messaging.StockReservationResultProducer;
 import com.rajitha.ecommerce.service.ProductService;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,10 +24,15 @@ import java.util.List;
 @ExtendWith(MockitoExtension.class)
 class OrderCreatedConsumerTest {
 
-    @InjectMocks
     OrderCreatedConsumer orderCreatedConsumer;
     @Mock ProductService productService;
     @Mock StockReservationResultProducer stockReservationResultProducer;
+    final MeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    @BeforeEach
+    void setUp() {
+        orderCreatedConsumer = new OrderCreatedConsumer(productService, stockReservationResultProducer, meterRegistry);
+    }
 
     @Test
     void shouldPublishSuccessfulReservationWhenStockAvailable(){
@@ -52,6 +59,7 @@ class OrderCreatedConsumerTest {
         Assertions.assertTrue(captor.getValue().success());
         Assertions.assertEquals("reference", captor.getValue().orderReference());
         Assertions.assertEquals(purchased, captor.getValue().products());
+        Assertions.assertEquals(1.0, meterRegistry.counter("stock_reservation_total", "result", "success").count());
     }
 
     @Test
@@ -75,5 +83,6 @@ class OrderCreatedConsumerTest {
         Assertions.assertFalse(captor.getValue().success());
         Assertions.assertEquals("reference", captor.getValue().orderReference());
         Assertions.assertEquals("Insufficient stock quantity for product variant with id1", captor.getValue().reason());
+        Assertions.assertEquals(1.0, meterRegistry.counter("stock_reservation_total", "result", "failure").count());
     }
 }

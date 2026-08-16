@@ -1,6 +1,21 @@
 import NextAuth from "next-auth";
 import Keycloak from "next-auth/providers/keycloak";
 
+// Keycloak realm roles live in the access token's own realm_access.roles claim —
+// NextAuth's `profile`/`account` params don't surface it, so this decodes the JWT
+// payload directly (no verification needed: the token was already validated by
+// Keycloak issuing it to us over PKCE, and every downstream API call re-validates
+// it anyway — this is purely for client-side "show the seller nav link" UI).
+function decodeRealmRoles(accessToken: string): string[] {
+  try {
+    const payload = accessToken.split(".")[1];
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8"));
+    return Array.isArray(decoded?.realm_access?.roles) ? decoded.realm_access.roles : [];
+  } catch {
+    return [];
+  }
+}
+
 const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Keycloak({
@@ -25,6 +40,7 @@ const { handlers, auth, signIn, signOut } = NextAuth({
       if (account) {
         token.accessToken = account.access_token;
         token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : undefined;
+        token.roles = account.access_token ? decodeRealmRoles(account.access_token) : [];
       }
       if (profile?.sub) {
         token.userId = profile.sub;
@@ -42,6 +58,7 @@ const { handlers, auth, signIn, signOut } = NextAuth({
       // strategy we don't use) intersects with our optional Session.userId
       // augmentation, so the merged param type requires a plain string here.
       session.userId = token.userId as string;
+      session.roles = token.roles ?? [];
       return session;
     },
   },

@@ -53,6 +53,12 @@ public class SecurityConfiguration {
                 .authorizeExchange(exchange ->exchange
                         .pathMatchers("/eureka/**")
                         .permitAll()
+                        // Prometheus scrapes this directly (no JWT) — found as a real
+                        // bug during Phase 13's live verification: without this, the
+                        // anyExchange().authenticated() catch-all 401s Prometheus's
+                        // own scrape requests to the gateway's own actuator endpoint.
+                        .pathMatchers("/actuator/**")
+                        .permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/products/**")
                         .permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/categories/**")
@@ -72,6 +78,12 @@ public class SecurityConfiguration {
                         .hasAnyAuthority("ROLE_SELLER", "ROLE_ADMIN")
                         .pathMatchers(HttpMethod.PUT, "/api/v1/products/**")
                         .hasAnyAuthority("ROLE_SELLER", "ROLE_ADMIN")
+                        // Reviews are the one product-nested write any authenticated
+                        // customer (not just sellers/admins) can do — must come before
+                        // the broad DELETE /api/v1/products/** rule below, which is
+                        // about deleting the *product itself*, not a review on it.
+                        .pathMatchers(HttpMethod.DELETE, "/api/v1/products/*/reviews/**")
+                        .authenticated()
                         .pathMatchers(HttpMethod.DELETE, "/api/v1/products/**")
                         .hasAnyAuthority("ROLE_SELLER", "ROLE_ADMIN")
                         .pathMatchers(HttpMethod.POST, "/api/v1/categories")
@@ -79,6 +91,29 @@ public class SecurityConfiguration {
                         .pathMatchers(HttpMethod.PUT, "/api/v1/categories/**")
                         .hasAuthority("ROLE_ADMIN")
                         .pathMatchers(HttpMethod.DELETE, "/api/v1/categories/**")
+                        .hasAuthority("ROLE_ADMIN")
+                        // Exact path only — /api/v1/orders/mine and /api/v1/orders/{id}
+                        // are NOT matched by this and fall through to "authenticated"
+                        // below. This is the unfiltered "every order" listing.
+                        .pathMatchers(HttpMethod.GET, "/api/v1/orders")
+                        .hasAuthority("ROLE_ADMIN")
+                        .pathMatchers(HttpMethod.PATCH, "/api/v1/order-lines/**")
+                        .hasAnyAuthority("ROLE_SELLER", "ROLE_ADMIN")
+                        .pathMatchers(HttpMethod.POST, "/api/v1/payouts/settle")
+                        .hasAuthority("ROLE_ADMIN")
+                        // /preview must come before the broader GET rule below —
+                        // first match wins, and it's the one coupon endpoint any
+                        // signed-in customer needs (to see their discount at
+                        // checkout) rather than just admins.
+                        .pathMatchers(HttpMethod.GET, "/api/v1/coupons/preview")
+                        .authenticated()
+                        .pathMatchers(HttpMethod.GET, "/api/v1/coupons/**")
+                        .hasAuthority("ROLE_ADMIN")
+                        .pathMatchers(HttpMethod.POST, "/api/v1/coupons")
+                        .hasAuthority("ROLE_ADMIN")
+                        .pathMatchers(HttpMethod.PUT, "/api/v1/coupons/**")
+                        .hasAuthority("ROLE_ADMIN")
+                        .pathMatchers(HttpMethod.DELETE, "/api/v1/coupons/**")
                         .hasAuthority("ROLE_ADMIN")
                         .anyExchange()
                         .authenticated())

@@ -30,6 +30,21 @@ export function SiteHeader() {
           <Link href="/#categories" className="hover:text-accent">
             Categories
           </Link>
+          {status === "authenticated" && (
+            <Link href="/orders" className="hover:text-accent">
+              Orders
+            </Link>
+          )}
+          {status === "authenticated" && (
+            <Link href={session.roles?.includes("seller") ? "/seller" : "/seller/products"} className="hover:text-accent">
+              {session.roles?.includes("seller") ? "Seller Dashboard" : "Sell with us"}
+            </Link>
+          )}
+          {status === "authenticated" && session.roles?.includes("admin") && (
+            <Link href="/admin" className="hover:text-accent">
+              Admin
+            </Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-1 sm:gap-2">

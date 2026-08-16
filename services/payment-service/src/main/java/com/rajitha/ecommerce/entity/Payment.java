@@ -28,6 +28,11 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     private PaymentMethode paymentMethode;
     private String orderReference;
+    // Needed to ever issue a Stripe refund against this charge — was not persisted
+    // before Phase 8 even though StripePaymentService.ChargeResult already carried it.
+    private String stripePaymentIntentId;
+    @Builder.Default
+    private boolean refunded = false;
     @CreatedDate
     @Column(updatable = false, nullable = false)
     private LocalDateTime createdDate;

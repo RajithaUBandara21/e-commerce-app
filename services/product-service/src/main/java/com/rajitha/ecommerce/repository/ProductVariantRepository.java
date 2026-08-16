@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface ProductVariantRepository extends JpaRepository<ProductVariant,Integer>{
     List<ProductVariant> findAllByIdInOrderById(List<Integer> variantIds);
+
+    List<ProductVariant> findAllByProduct_Id(Integer productId);
 }

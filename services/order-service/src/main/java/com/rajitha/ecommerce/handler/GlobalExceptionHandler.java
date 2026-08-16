@@ -2,6 +2,9 @@ package com.rajitha.ecommerce.handler;
 
 import com.rajitha.ecommerce.dto.ErrorResponseDTO;
 import com.rajitha.ecommerce.exception.BusinessException;
+import com.rajitha.ecommerce.exception.CouponAlreadyExistsException;
+import com.rajitha.ecommerce.exception.CouponInvalidException;
+import com.rajitha.ecommerce.exception.CouponNotFoundException;
 import com.rajitha.ecommerce.exception.OrderAccessDeniedException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -33,6 +36,27 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleOrderAccessDeniedException(OrderAccessDeniedException ex){
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(CouponNotFoundException.class)
+    public ResponseEntity<String> handleCouponNotFoundException(CouponNotFoundException ex){
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(CouponAlreadyExistsException.class)
+    public ResponseEntity<String> handleCouponAlreadyExistsException(CouponAlreadyExistsException ex){
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(CouponInvalidException.class)
+    public ResponseEntity<String> handleCouponInvalidException(CouponInvalidException ex){
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
                 .body(ex.getMessage());
     }
 

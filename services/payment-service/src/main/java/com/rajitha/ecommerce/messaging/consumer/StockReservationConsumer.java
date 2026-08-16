@@ -7,6 +7,8 @@ import com.rajitha.ecommerce.messaging.PaymentNotificationProducer;
 import com.rajitha.ecommerce.repository.PaymentRepository;
 import com.rajitha.ecommerce.service.SellerPayoutService;
 import com.rajitha.ecommerce.service.StripePaymentService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -21,6 +23,7 @@ public class StockReservationConsumer {
     private final PaymentRepository paymentRepository;
     private final PaymentNotificationProducer paymentNotificationProducer;
     private final SellerPayoutService sellerPayoutService;
+    private final MeterRegistry meterRegistry;
 
     @KafkaListener(topics = "stock-topic", groupId = "paymentServiceStockGroup")
     public void consumeStockReservationResult(StockReservationResultEventDTO event) {
@@ -42,9 +45,12 @@ public class StockReservationConsumer {
                     .amount(event.totalAmount())
                     .paymentMethode(event.paymentMethode())
                     .orderReference(event.orderReference())
+                    .stripePaymentIntentId(chargeResult.stripePaymentIntentId())
                     .build());
             sellerPayoutService.recordPayoutsForOrder(event.orderReference(), event.products());
         }
+
+        chargeCounter(chargeResult.success() ? "success" : "failure").increment();
 
         paymentNotificationProducer.sendNotification(
                 PaymentNotificationRequestDTO.builder()
@@ -58,5 +64,16 @@ public class StockReservationConsumer {
                         .customerLastName(event.customer() == null ? null : event.customer().lastName())
                         .build()
         );
+    }
+
+    // Saga decision point: how often a reserved-stock order actually gets
+    // charged successfully vs. fails at Stripe — distinct from stock reservation
+    // failing, which never reaches this consumer at all (see the early return
+    // above).
+    private Counter chargeCounter(String result) {
+        return Counter.builder("payment_charge_total")
+                .description("Stripe charge attempts from the checkout saga, by result")
+                .tag("result", result)
+                .register(meterRegistry);
     }
 }

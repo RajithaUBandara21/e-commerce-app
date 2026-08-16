@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Heart } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { ProductArt } from "@/components/ProductArt";
 import { useWishlist } from "@/lib/wishlist";
@@ -28,11 +28,29 @@ export function ProductCard({ product }: { product: Product }) {
       </button>
 
       <Link href={`/products/${product.id}`} className="flex flex-1 flex-col">
-        <ProductArt seed={`${product.id}-${product.name}`} className="aspect-4/5 w-full" />
+        {product.imageUrls.length > 0 ? (
+          // MinIO's origin is env-dependent (local dev vs. deployment), not worth a
+          // next.config.ts remotePatterns entry that would need updating alongside it.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.imageUrls[0]}
+            alt={product.name}
+            loading="lazy"
+            className="aspect-4/5 w-full object-cover"
+          />
+        ) : (
+          <ProductArt seed={`${product.id}-${product.name}`} className="aspect-4/5 w-full" />
+        )}
 
         <div className="flex flex-1 flex-col gap-1 p-4">
           <span className="text-xs uppercase tracking-wide text-foreground/50">{product.categoryName}</span>
           <span className="font-medium leading-snug">{product.name}</span>
+          {product.reviewCount > 0 && product.averageRating !== null && (
+            <span className="flex items-center gap-1 text-sm text-foreground/50">
+              <Star size={14} className="fill-accent text-accent" />
+              {product.averageRating.toFixed(1)} ({product.reviewCount})
+            </span>
+          )}
           {colors.length > 0 && <span className="text-sm text-foreground/50">{colors.join(" · ")}</span>}
           <span className="mt-auto flex items-center justify-between pt-3">
             <span className="text-lg font-semibold">${product.price.toFixed(2)}</span>

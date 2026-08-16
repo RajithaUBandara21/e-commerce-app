@@ -3,6 +3,7 @@ package com.rajitha.ecommerce.mapper;
 import com.rajitha.ecommerce.dto.ProductPurchaseResponseDTO;
 import com.rajitha.ecommerce.dto.ProductRequestDTO;
 import com.rajitha.ecommerce.dto.ProductResponseDTO;
+import com.rajitha.ecommerce.dto.RatingSummaryDTO;
 import com.rajitha.ecommerce.dto.ProductVariantRequestDTO;
 import com.rajitha.ecommerce.dto.ProductVariantResponseDTO;
 import com.rajitha.ecommerce.entity.Category;
@@ -46,13 +47,14 @@ public class ProductMapper {
                 .build();
     }
 
-    public ProductResponseDTO toProductResponseDTO(Product product) {
+    public ProductResponseDTO toProductResponseDTO(Product product, List<String> imageUrls, RatingSummaryDTO ratingSummary) {
 
         if (product == null) {
             throw new NullPointerException("Product is null");
         }
         List<ProductVariantResponseDTO> variants = product.getVariants() == null ? List.of() :
                 product.getVariants().stream().map(this::toProductVariantResponseDTO).toList();
+        var rating = ratingSummary == null ? RatingSummaryDTO.EMPTY : ratingSummary;
 
         return new ProductResponseDTO(
                 product.getId(),
@@ -63,7 +65,10 @@ public class ProductMapper {
                 product.getCategory().getId(),
                 product.getCategory().getName(),
                 product.getCategory().getDescription(),
-                variants
+                variants,
+                imageUrls == null ? List.of() : imageUrls,
+                rating.averageRating(),
+                rating.reviewCount()
         );
     }
 

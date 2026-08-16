@@ -6,12 +6,14 @@ import com.rajitha.ecommerce.enums.PaymentMethode;
 import com.rajitha.ecommerce.mapper.PaymentMapper;
 import com.rajitha.ecommerce.messaging.PaymentNotificationProducer;
 import com.rajitha.ecommerce.repository.PaymentRepository;
-import jakarta.persistence.criteria.CriteriaBuilder;
+import com.rajitha.ecommerce.service.StripePaymentService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
+import java.util.Optional;
 
 //@ExtendWith(MockitoExtension.class)
 class PaymentServiceImplTest {
@@ -23,6 +25,7 @@ class PaymentServiceImplTest {
     private PaymentMapper paymentMapper;
 //    @Mock
     private PaymentNotificationProducer paymentNotificationProducer;
+    private StripePaymentService stripePaymentService;
 
     @BeforeEach
     void setUp() {
@@ -30,7 +33,8 @@ class PaymentServiceImplTest {
         paymentRepository = Mockito.mock(PaymentRepository.class);
         paymentMapper = Mockito.mock(PaymentMapper.class);
         paymentNotificationProducer = Mockito.mock(PaymentNotificationProducer.class);
-        paymentServiceImpl = new PaymentServiceImpl(paymentRepository, paymentMapper, paymentNotificationProducer);
+        stripePaymentService = Mockito.mock(StripePaymentService.class);
+        paymentServiceImpl = new PaymentServiceImpl(paymentRepository, paymentMapper, paymentNotificationProducer, stripePaymentService);
     }
 
 
@@ -62,5 +66,66 @@ class PaymentServiceImplTest {
 
     }
 
+    @Test
+    public void shouldRefundPaymentWhenStripeRefundSucceeds() {
+        Payment payment = Payment.builder()
+                .orderReference("reference")
+                .stripePaymentIntentId("pi_123")
+                .refunded(false)
+                .build();
 
+        Mockito.when(paymentRepository.findByOrderReference("reference")).thenReturn(Optional.of(payment));
+        Mockito.when(stripePaymentService.refund("pi_123"))
+                .thenReturn(StripePaymentService.RefundResult.success("re_123"));
+
+        var response = paymentServiceImpl.refundByOrderReference("reference");
+
+        Assertions.assertTrue(response.success());
+        Assertions.assertTrue(payment.isRefunded());
+        Mockito.verify(paymentRepository).save(payment);
+    }
+
+    @Test
+    public void shouldReturnFailureWhenStripeRefundFails() {
+        Payment payment = Payment.builder()
+                .orderReference("reference")
+                .stripePaymentIntentId("pi_123")
+                .refunded(false)
+                .build();
+
+        Mockito.when(paymentRepository.findByOrderReference("reference")).thenReturn(Optional.of(payment));
+        Mockito.when(stripePaymentService.refund("pi_123"))
+                .thenReturn(StripePaymentService.RefundResult.failure("charge already refunded"));
+
+        var response = paymentServiceImpl.refundByOrderReference("reference");
+
+        Assertions.assertFalse(response.success());
+        Assertions.assertEquals("charge already refunded", response.reason());
+        Assertions.assertFalse(payment.isRefunded());
+        Mockito.verify(paymentRepository, Mockito.never()).save(payment);
+    }
+
+    @Test
+    public void shouldShortCircuitWhenAlreadyRefunded() {
+        Payment payment = Payment.builder()
+                .orderReference("reference")
+                .stripePaymentIntentId("pi_123")
+                .refunded(true)
+                .build();
+
+        Mockito.when(paymentRepository.findByOrderReference("reference")).thenReturn(Optional.of(payment));
+
+        var response = paymentServiceImpl.refundByOrderReference("reference");
+
+        Assertions.assertTrue(response.success());
+        Mockito.verifyNoInteractions(stripePaymentService);
+    }
+
+    @Test
+    public void shouldThrowWhenNoPaymentFoundForOrderReference() {
+        Mockito.when(paymentRepository.findByOrderReference("missing")).thenReturn(Optional.empty());
+
+        Assertions.assertThrows(ResponseStatusException.class,
+                () -> paymentServiceImpl.refundByOrderReference("missing"));
+    }
 }

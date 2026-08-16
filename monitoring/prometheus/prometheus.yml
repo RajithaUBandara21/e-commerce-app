@@ -1,0 +1,72 @@
+# Scrape targets use host.docker.internal since the 10 Spring Boot services run
+# on the host (java -jar / mvn spring-boot:run), not inside this docker-compose —
+# only infra is containerized here (see CLAUDE.md's "Local infrastructure"
+# section). host.docker.internal works out of the box on Docker Desktop
+# (Windows/Mac); on native Linux Docker, add an extra_hosts entry mapping it to
+# host-gateway (already done for the prometheus service in docker-compose.yml).
+#
+# Ports below are the confirmed local-dev defaults sprinkled through the codebase
+# as Feign-client fallback URLs (see CLAUDE.md's service list) — cart-service has
+# no such reference anywhere in the repo (it's the one Feign *client*-only
+# service nothing else calls into), so its port is a placeholder. Adjust to match
+# your actual config-server-assigned port if it differs.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: discovery-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8761"]
+
+  - job_name: config-server
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8888"]
+
+  - job_name: api-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8222"]
+
+  - job_name: customer-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8091"]
+
+  - job_name: product-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8050"]
+
+  - job_name: seller-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8095"]
+
+  - job_name: order-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8070"]
+
+  - job_name: payment-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8060"]
+
+  - job_name: notification-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8040"]
+
+  - job_name: cart-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # Placeholder — see the file header note. Update once you know this
+      # service's actual local port.
+      - targets: ["host.docker.internal:8100"]
+
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka-exporter:9308"]

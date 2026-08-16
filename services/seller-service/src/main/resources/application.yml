@@ -19,3 +19,9 @@ keycloak:
     client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:seller-service}
     client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
     seller-role: ${KEYCLOAK_SELLER_ROLE:seller}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

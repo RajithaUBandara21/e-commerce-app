@@ -85,6 +85,22 @@ services:
     ports:
       - 10081:1080
       - 1025:1025
+
+  minio:
+    container_name: ms_minio
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-rajitha}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-rajitha123}
+    ports:
+      - 9000:9000
+      - 9001:9001
+    volumes:
+      - minio:/data
+    networks:
+      - microservices-net
+    restart: unless-stopped
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: ms_kafka
@@ -123,6 +139,53 @@ services:
     networks:
     - microservices-net
 
+  kafka-exporter:
+    container_name: ms_kafka_exporter
+    image: danielqsj/kafka-exporter
+    command: ["--kafka.server=kafka:9092"]
+    ports:
+      - 9308:9308
+    depends_on:
+      - kafka
+    networks:
+      - microservices-net
+    restart: unless-stopped
+
+  # Scrapes the 10 Spring Boot services on the host (see
+  # monitoring/prometheus/prometheus.yml — they run outside this compose file,
+  # only infra is containerized here) plus kafka-exporter above.
+  prometheus:
+    container_name: ms_prometheus
+    image: prom/prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+    ports:
+      - 9090:9090
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - microservices-net
+    restart: unless-stopped
+
+  grafana:
+    container_name: ms_grafana
+    image: grafana/grafana
+    ports:
+      - 4000:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - microservices-net
+    restart: unless-stopped
+
 networks:
   microservices-net:
     driver: bridge
@@ -132,3 +195,6 @@ volumes:
   pgadmin:
   mongo:
   redis:
+  minio:
+  prometheus:
+  grafana:

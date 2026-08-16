@@ -21,7 +21,13 @@ public record ProductResponseDTO(
 
         String categoryDescription,
 
-        List<ProductVariantResponseDTO> variants
+        List<ProductVariantResponseDTO> variants,
+
+        List<String> imageUrls,
+
+        Double averageRating,
+
+        int reviewCount
 ){
 
 }

@@ -49,3 +49,9 @@ resilience4j:
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 5
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+

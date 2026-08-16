@@ -14,10 +14,23 @@ export type Product = {
   name: string;
   description: string;
   price: number;
+  sellerId: string;
   categoryId: number;
   categoryName: string;
   categoryDescription: string;
   variants: ProductVariant[];
+  imageUrls: string[];
+  averageRating: number | null;
+  reviewCount: number;
+};
+
+export type Review = {
+  id: number;
+  productId: number;
+  customerId: string;
+  rating: number;
+  comment: string | null;
+  createdDate: string;
 };
 
 export type CartItem = {
@@ -48,4 +61,23 @@ export type Order = {
   paymentMethode: PaymentMethod;
   status: OrderStatus;
   customerId: string;
+};
+
+export type OrderLineStatus = "PENDING" | "SHIPPED" | "DELIVERED";
+
+export type OrderLine = {
+  id: number;
+  orderId: number;
+  variantId: number;
+  quantity: number;
+  sellerId: string;
+  status: OrderLineStatus;
+  trackingNumber: string | null;
+};
+
+export type Category = {
+  id: number;
+  name: string;
+  description: string | null;
+  productCount: number;
 };

@@ -13,4 +13,8 @@ public interface OrderService {
     List<OrderResponseDTO> findAllOderResponses();
 
     OrderResponseDTO getOderById(Integer orderId);
+
+    List<OrderResponseDTO> findMyOrders(String customerId);
+
+    OrderResponseDTO refundOrder(Integer orderId, String callerId, boolean isAdmin);
 }

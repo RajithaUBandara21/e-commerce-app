@@ -14,5 +14,17 @@ public interface StripePaymentService {
         }
     }
 
+    record RefundResult(boolean success, String stripeRefundId, String failureReason) {
+        public static RefundResult success(String stripeRefundId) {
+            return new RefundResult(true, stripeRefundId, null);
+        }
+
+        public static RefundResult failure(String reason) {
+            return new RefundResult(false, null, reason);
+        }
+    }
+
     ChargeResult charge(BigDecimal amount, String currency, String paymentMethodId, String customerEmail);
+
+    RefundResult refund(String stripePaymentIntentId);
 }

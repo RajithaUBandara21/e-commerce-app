@@ -87,7 +87,9 @@ class ProductMapperTest {
 
        category.getProducts().add(product);
 
-       ProductResponseDTO productResponseDTO = productMapper.toProductResponseDTO(product);
+       ProductResponseDTO productResponseDTO = productMapper.toProductResponseDTO(product,
+               List.of("http://localhost:9000/product-images/products/1/a.jpg"),
+               new com.rajitha.ecommerce.dto.RatingSummaryDTO(4.5, 2));
        Assertions.assertNotNull(productResponseDTO);
        Assertions.assertEquals(product.getId(), productResponseDTO.id());
        Assertions.assertEquals(product.getName(), productResponseDTO.name());
@@ -96,9 +98,12 @@ class ProductMapperTest {
        Assertions.assertEquals(product.getCategory().getId(), productResponseDTO.categoryId());
        Assertions.assertEquals(product.getCategory().getName(), productResponseDTO.categoryName());
        Assertions.assertEquals(product.getCategory().getDescription(), productResponseDTO.categoryDescription());
+       Assertions.assertEquals(1, productResponseDTO.imageUrls().size());
        Assertions.assertEquals(1, productResponseDTO.variants().size());
        Assertions.assertEquals(variant.getSku(), productResponseDTO.variants().get(0).sku());
        Assertions.assertEquals(variant.getAvailableQuantity(), productResponseDTO.variants().get(0).availableQuantity());
+       Assertions.assertEquals(4.5, productResponseDTO.averageRating());
+       Assertions.assertEquals(2, productResponseDTO.reviewCount());
 
    }
 
@@ -163,7 +168,7 @@ class ProductMapperTest {
 
    @Test
    public void shouldThrowNullProductExceptionMapToProductResponseDTO(){
-      var message = Assertions.assertThrows(NullPointerException.class, () -> productMapper.toProductResponseDTO(null));
+      var message = Assertions.assertThrows(NullPointerException.class, () -> productMapper.toProductResponseDTO(null, List.of(), null));
       Assertions.assertEquals(message.getMessage(), "Product is null");   }
 
    @Test

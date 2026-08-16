@@ -10,11 +10,13 @@ import com.rajitha.ecommerce.messaging.PaymentNotificationProducer;
 import com.rajitha.ecommerce.repository.PaymentRepository;
 import com.rajitha.ecommerce.service.SellerPayoutService;
 import com.rajitha.ecommerce.service.StripePaymentService;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -25,12 +27,18 @@ import java.util.List;
 @ExtendWith(MockitoExtension.class)
 class StockReservationConsumerTest {
 
-    @InjectMocks
     StockReservationConsumer stockReservationConsumer;
     @Mock StripePaymentService stripePaymentService;
     @Mock PaymentRepository paymentRepository;
     @Mock PaymentNotificationProducer paymentNotificationProducer;
     @Mock SellerPayoutService sellerPayoutService;
+    final MeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    @BeforeEach
+    void setUp() {
+        stockReservationConsumer = new StockReservationConsumer(
+                stripePaymentService, paymentRepository, paymentNotificationProducer, sellerPayoutService, meterRegistry);
+    }
 
     @Test
     void shouldChargeAndSaveAndNotifyWhenReservationSucceedsAndChargeSucceeds(){
@@ -60,6 +68,7 @@ class StockReservationConsumerTest {
         Mockito.verify(paymentNotificationProducer, Mockito.times(1)).sendNotification(captor.capture());
         Assertions.assertTrue(captor.getValue().success());
         Assertions.assertEquals("reference", captor.getValue().orderReference());
+        Assertions.assertEquals(1.0, meterRegistry.counter("payment_charge_total", "result", "success").count());
     }
 
     @Test
@@ -88,6 +97,7 @@ class StockReservationConsumerTest {
         Mockito.verify(paymentNotificationProducer, Mockito.times(1)).sendNotification(captor.capture());
         Assertions.assertFalse(captor.getValue().success());
         Assertions.assertEquals("No Stripe payment method provided", captor.getValue().reason());
+        Assertions.assertEquals(1.0, meterRegistry.counter("payment_charge_total", "result", "failure").count());
     }
 
     @Test
@@ -103,5 +113,6 @@ class StockReservationConsumerTest {
 
         Mockito.verify(stripePaymentService, Mockito.never()).charge(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
         Mockito.verify(paymentNotificationProducer, Mockito.never()).sendNotification(Mockito.any(PaymentNotificationRequestDTO.class));
+        Assertions.assertTrue(meterRegistry.find("payment_charge_total").counters().isEmpty());
     }
 }

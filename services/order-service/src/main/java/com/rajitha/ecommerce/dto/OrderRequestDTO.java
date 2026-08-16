@@ -24,6 +24,7 @@ public record OrderRequestDTO(
         String customerId,
         @NotEmpty(message = "you should at least purchase one product")
         List<PurchaseRequestDTO> products,
-        String stripePaymentMethodId
+        String stripePaymentMethodId,
+        String couponCode
 ) {
     }

@@ -6,6 +6,9 @@ import com.rajitha.ecommerce.exeption.CategoryNotEmptyException;
 import com.rajitha.ecommerce.exeption.CategoryNotFoundException;
 import com.rajitha.ecommerce.exeption.ProductAccessDeniedException;
 import com.rajitha.ecommerce.exeption.ProductPurchaseException;
+import com.rajitha.ecommerce.exeption.ReviewAccessDeniedException;
+import com.rajitha.ecommerce.exeption.ReviewAlreadyExistsException;
+import com.rajitha.ecommerce.exeption.ReviewNotVerifiedPurchaseException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,6 +58,27 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(CategoryAccessDeniedException.class)
     public ResponseEntity<String> handleCategoryAccessDeniedException(CategoryAccessDeniedException ex){
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ReviewAccessDeniedException.class)
+    public ResponseEntity<String> handleReviewAccessDeniedException(ReviewAccessDeniedException ex){
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ReviewAlreadyExistsException.class)
+    public ResponseEntity<String> handleReviewAlreadyExistsException(ReviewAlreadyExistsException ex){
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ReviewNotVerifiedPurchaseException.class)
+    public ResponseEntity<String> handleReviewNotVerifiedPurchaseException(ReviewNotVerifiedPurchaseException ex){
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
                 .body(ex.getMessage());

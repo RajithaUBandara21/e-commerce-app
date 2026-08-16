@@ -21,8 +21,12 @@ public class OrderLineMapper {
     public OrderLineResponseDTO toOrderLineResponseDTO(OrderLine orderLine) {
             return OrderLineResponseDTO.builder()
                     .id(orderLine.getId())
+                    .orderId(orderLine.getOrder() == null ? null : orderLine.getOrder().getId())
                     .variantId(orderLine.getVariantId())
                     .quantity(orderLine.getQuantity())
+                    .sellerId(orderLine.getSellerId())
+                    .status(orderLine.getStatus())
+                    .trackingNumber(orderLine.getTrackingNumber())
                     .build();
     }
 }

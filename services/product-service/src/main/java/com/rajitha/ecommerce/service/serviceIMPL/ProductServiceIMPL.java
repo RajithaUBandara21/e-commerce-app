@@ -11,7 +11,9 @@ import com.rajitha.ecommerce.exeption.ProductPurchaseException;
 import com.rajitha.ecommerce.mapper.ProductMapper;
 import com.rajitha.ecommerce.repository.ProductRepository;
 import com.rajitha.ecommerce.repository.ProductVariantRepository;
+import com.rajitha.ecommerce.service.ProductImageService;
 import com.rajitha.ecommerce.service.ProductService;
+import com.rajitha.ecommerce.service.ReviewService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -27,10 +29,14 @@ public class ProductServiceIMPL implements ProductService {
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final ProductMapper productMapper;
-    public ProductServiceIMPL(ProductRepository productRepository, ProductVariantRepository productVariantRepository, ProductMapper productMapper) {
+    private final ProductImageService productImageService;
+    private final ReviewService reviewService;
+    public ProductServiceIMPL(ProductRepository productRepository, ProductVariantRepository productVariantRepository, ProductMapper productMapper, ProductImageService productImageService, ReviewService reviewService) {
         this.productRepository = productRepository;
         this.productVariantRepository = productVariantRepository;
         this.productMapper = productMapper;
+        this.productImageService = productImageService;
+        this.reviewService = reviewService;
     }
 
     @Override
@@ -131,7 +137,10 @@ public class ProductServiceIMPL implements ProductService {
 
     @Override
     public ProductResponseDTO findProductById(Integer productId) {
-        return productRepository.findById(productId).map(productMapper::toProductResponseDTO).orElseThrow(()-> new EntityNotFoundException("Product not found" + productId));
+        var product = productRepository.findById(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Product not found" + productId));
+        return productMapper.toProductResponseDTO(product, productImageService.findImageUrlsByProductId(productId),
+                reviewService.getRatingSummary(productId));
     }
 
     @Override
@@ -139,6 +148,9 @@ public class ProductServiceIMPL implements ProductService {
         var products = sellerId == null || sellerId.isBlank()
                 ? productRepository.findAll()
                 : productRepository.findAllBySellerId(sellerId);
-        return products.stream().map(productMapper::toProductResponseDTO).collect(Collectors.toList());
+        return products.stream()
+                .map(product -> productMapper.toProductResponseDTO(product, productImageService.findImageUrlsByProductId(product.getId()),
+                        reviewService.getRatingSummary(product.getId())))
+                .collect(Collectors.toList());
     }
 }

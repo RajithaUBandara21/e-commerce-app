@@ -14,3 +14,9 @@ platform:
 application:
   config:
     seller-url: ${SELLER_SERVICE_URL:http://localhost:8095/api/v1/sellers}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

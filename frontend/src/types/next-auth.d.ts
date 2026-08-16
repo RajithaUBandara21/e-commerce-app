@@ -9,6 +9,10 @@ declare module "next-auth" {
   interface Session {
     accessToken?: string;
     userId?: string;
+    // Decoded from the Keycloak access token's realm_access.roles claim (see
+    // auth.ts's jwt callback) — NextAuth/next-auth-js has no built-in concept
+    // of this, it's entirely our own decoding.
+    roles?: string[];
   }
 }
 
@@ -17,6 +21,7 @@ declare module "next-auth/jwt" {
     accessToken?: string;
     accessTokenExpires?: number;
     userId?: string;
+    roles?: string[];
   }
 }
 
@@ -28,5 +33,6 @@ declare module "@auth/core/jwt" {
     accessToken?: string;
     accessTokenExpires?: number;
     userId?: string;
+    roles?: string[];
   }
 }
