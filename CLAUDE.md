@@ -50,6 +50,7 @@ Tracing goes through Zipkin (`micrometer-tracing-bridge-brave`, port 9411) on se
 - Data: `src/lib/api.ts` is the only place that calls the gateway; catalog reads are public (`GET /api/v1/products/**`, permitted at the gateway without a token), everything else needs the session's access token. Cart/checkout mutations go through Server Actions (`src/lib/actions.ts`), not client-side fetch.
 - Seller dashboard: `src/app/seller/**` (`/seller` overview, `/products`, `/orders`, `/payouts`, `/onboarding`). Every page except `/onboarding` gates through `SellerStatusGate` (unregistered → CTA, `PENDING`/`SUSPENDED` → status message, `ACTIVE` → renders `SellerNav` + the page) — add new seller pages through that component rather than re-implementing the branch.
 - Admin dashboard: `src/app/admin/**` (`/categories`, `/sellers`, `/orders`; `/admin` redirects to `/categories`). Gated by `AdminGate` (`session.roles.includes("admin")`) — a UI convenience only, since the gateway independently enforces `ROLE_ADMIN` on every write these pages make. No new backend endpoints — this phase only consumed what Phases 6/8 already exposed.
+- SEO: `src/lib/seo.ts` holds `SITE_URL`/`SITE_NAME` (from `NEXT_PUBLIC_SITE_URL`). `layout.tsx` sets site-wide metadata (OG/Twitter defaults, `title.template`); `products/[id]/page.tsx` overrides via `generateMetadata` with real product data and emits `Product`/`Offer`/`AggregateRating` JSON-LD. `sitemap.ts`/`robots.ts` at the app root — the sitemap degrades to just the homepage if the catalog fetch fails, same as every other `src/lib/api.ts` caller.
 - If you touch `src/auth.ts` or `src/types/next-auth.d.ts`: TypeScript module augmentation for `next-auth`/`next-auth/jwt` is fragile here — see the "real bug hit and fixed" note in `PLAN.md`'s Phase 5 writeup before changing either file. The short version: the augmentation `.d.ts` needs its own `export {}`, and both `next-auth/jwt` and `@auth/core/jwt` need the same fields augmented.
 - This Next.js version has real breaking changes from older training data (renamed `proxy.ts`, `fetch` no longer cached by default, `params`/`searchParams` are Promises). When in doubt, check `frontend/node_modules/next/dist/docs/` before assuming an API — `frontend/AGENTS.md` says the same.
 
@@ -69,8 +70,11 @@ docker compose up -d
 - Zipkin `9411`
 - Keycloak `8080` (realm `micro`, admin/admin, `start-dev` mode)
 - MinIO `9000` (API) / `9001` (console), product images — bucket `product-images` is auto-created with a public-read policy by product-service on startup
+- Prometheus `9090` (config in `monitoring/prometheus/prometheus.yml`, scrapes the 10 host-run services via `host.docker.internal` plus `kafka-exporter`) / Grafana `4000` (admin/admin by default, `GF_SECURITY_ADMIN_*` env vars override; provisioned datasource + dashboard from `monitoring/grafana/`) / kafka-exporter `9308`
 
 Service startup order matters: **config-server → discovery-service**, then the rest (each service does `optional:configserver:http://localhost:8888` on boot, and registers with Eureka).
+
+Every credential/secret across the stack is documented in root `.env.example` (copy to `.env` for local overrides — `docker compose` auto-loads it for the containers above; the 10 Spring Boot services aren't containerized, so running one via `mvn spring-boot:run`/`java -jar` needs the relevant variables exported in that shell/IDE run config too, `.env` doesn't reach them automatically).
 
 ## Common commands
 
@@ -80,12 +84,13 @@ Run per-service, from inside `services/<name>/` (there is no root aggregator POM
 mvn clean install       # build + test
 mvn test                 # run all tests for this service
 mvn test -Dtest=ClassName#methodName   # run a single test
+mvn verify                # test + Testcontainers integration tests (what CI runs, via each Jenkinsfile's Verify stage)
 mvn spring-boot:run      # run the service locally
 ```
 
-Test layout mirrors main: mapper tests (e.g. `mapper/OrderMapperTest.java`) and service-impl tests (e.g. `service/serviceImpl/OrderServiceImplTest.java`) using Mockito/MockitoBean, plus one `*ApplicationTests` context-load test per service.
+Test layout mirrors main: mapper tests (e.g. `mapper/OrderMapperTest.java`) and service-impl tests (e.g. `service/serviceImpl/OrderServiceImplTest.java`) using Mockito/MockitoBean, plus one `*ApplicationTests` context-load test per service. order-service additionally has `saga/OrderSagaIntegrationTest.java` — a Testcontainers-backed (real Postgres + real Kafka) test of its saga-critical `@KafkaListener` wiring, run by both `mvn test` and `mvn verify` (needs Docker running locally).
 
-For the frontend, from inside `frontend/`: `npm run dev`, `npm run build`, `npm run lint`, `npx tsc --noEmit`. Copy `.env.local.example` to `.env.local` first.
+For the frontend, from inside `frontend/`: `npm run dev`, `npm run build`, `npm run lint`, `npx tsc --noEmit`, `npm run test:e2e` (Playwright — `e2e/`, needs `npx playwright install chromium` once first; `e2e/customer-checkout.spec.ts`/`e2e/seller-flow.spec.ts` additionally need `E2E_CUSTOMER_USERNAME`/`PASSWORD` and `E2E_SELLER_USERNAME`/`PASSWORD` env vars for seeded Keycloak test accounts, or they skip). Copy `.env.local.example` to `.env.local` first.
 
 ## Gotchas
 
@@ -98,3 +103,7 @@ For the frontend, from inside `frontend/`: `npm run dev`, `npm run build`, `npm 
 - Keycloak's `admin-cli` client issues near-empty access tokens for manual/scripted testing (no `sub`, no `realm_access`) — get a test token from a client with the default full client-scope set (e.g. `nextjs-storefront`) instead, or you'll chase phantom "missing X-User-Id" bugs that are actually just a bad test token.
 - Gateway routing (`spring.cloud.gateway.routes`) lives entirely in the external `e-com-app-config` repo, not in this one — `services/api-gateway/src/main/resources/application.yml` defines zero routes. Adding a new service means adding its route there (or a local scratch override for testing); nothing here in the repo will route to it otherwise.
 - **`services/product-service/src/main/resources/db/migration/` (Flyway `V1`/`V2`) is stale** — it predates the `ProductVariant`/`sellerId`/`Category`-CRUD/`ProductImage` schema entirely (still has the old `product.available_quantity` column, no `product_variant`/`product_image` tables). Every schema change this project has made relies on Hibernate `ddl-auto: update` instead; local scratch configs explicitly set `spring.flyway.enabled: false`. Don't assume the migration files reflect current schema, and don't add new ones without first reconciling the existing ones — they'd fail against a fresh database as-is.
+- **api-gateway's `SecurityConfiguration`'s `anyExchange().authenticated()` catch-all applies to the gateway's own local endpoints too, not just proxied traffic** — this 401'd Prometheus's own scrape of `/actuator/prometheus` until a `.pathMatchers("/actuator/**").permitAll()` matcher was added ahead of the catch-all (found live during Phase 13). Keep this in mind for any other local-to-the-gateway endpoint added later.
+- **Windows Hyper-V reserves TCP port ranges that Docker silently can't bind** (`netsh interface ipv4 show excludedportrange protocol=tcp` shows them) — port `3001` fell inside one on the dev machine this was built on, so Grafana's host port was moved to `4000` instead. If a new container's host port mysteriously refuses to bind with a permissions-flavored error, check this before assuming a real Docker bug.
+- **After Docker Desktop crashes/restarts on Windows, `kafka` can fail to rejoin `zookeeper`** with `org.apache.zookeeper.KeeperException$NodeExistsException` (a stale ephemeral broker-registration znode from before the crash). Fix: `docker compose up -d --force-recreate zookeeper kafka` — a plain restart isn't enough since it reuses the same (still-registered) container state.
+- **`npx playwright install chromium` downloads from `cdn.playwright.dev`**, not npm — if that's blocked/heavily rate-limited on a given network (observed in one sandboxed CI-like environment: stalled at 0% indefinitely across multiple attempts), the e2e specs will still `tsc`/`lint` clean but `npm run test:e2e` can't actually run until the browser binary lands some other way (a machine with unrestricted egress, a cached `~/.cache/ms-playwright` copied over, etc.).

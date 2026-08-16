@@ -1,5 +1,18 @@
 @Library('shared-lib@main') _
 
+// mvn verify runs unit + integration tests (order-service's own suite includes
+// a Testcontainers-backed one for its saga-critical Kafka+Postgres wiring) and
+// fails the build on any failure — added because buildService's own internal
+// behavior around testing isn't verifiable from this repo (see PLAN.md's
+// Phase 16 writeup).
+node {
+    stage('Verify') {
+        dir('services/config-server') {
+            sh 'mvn -B verify'
+        }
+    }
+}
+
 buildService(
     serviceName: 'config-server',
     subPath: 'services/config-server',

@@ -1,0 +1,28 @@
+@Library('shared-lib@main') _
+
+// No buildService() call here — the frontend isn't one of the 10 Spring Boot
+// services buildService was written for (no Docker image convention to
+// reuse), so this pipeline is written out directly rather than forcing it
+// through a shared step built for a different kind of project.
+node {
+    dir('frontend') {
+        stage('Install') {
+            sh 'npm ci'
+        }
+        stage('Lint') {
+            sh 'npm run lint'
+        }
+        stage('Type check') {
+            sh 'npx tsc --noEmit'
+        }
+        stage('Build') {
+            sh 'npm run build'
+        }
+        stage('E2E smoke') {
+            sh 'npx playwright install --with-deps chromium'
+            withEnv(['CI=true']) {
+                sh 'npm run test:e2e'
+            }
+        }
+    }
+}

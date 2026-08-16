@@ -1,11 +1,38 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProduct } from "@/lib/api";
 import { VariantPicker } from "@/components/VariantPicker";
 import { ProductArt } from "@/components/ProductArt";
 import { StarRating } from "@/components/StarRating";
 import { ReviewSection } from "@/components/ReviewSection";
+import { SITE_URL } from "@/lib/seo";
 
-export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+type Props = { params: Promise<{ id: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const productId = Number(id);
+  if (Number.isNaN(productId)) return {};
+
+  const product = await getProduct(productId).catch(() => null);
+  if (!product) return {};
+
+  const image = product.imageUrls[0];
+
+  return {
+    title: product.name,
+    description: product.description || `${product.name} — ${product.categoryName} at $${product.price.toFixed(2)}.`,
+    alternates: { canonical: `${SITE_URL}/products/${product.id}` },
+    openGraph: {
+      type: "website",
+      title: product.name,
+      description: product.description || undefined,
+      images: image ? [{ url: image }] : undefined,
+    },
+  };
+}
+
+export default async function ProductPage({ params }: Props) {
   const { id } = await params;
   const productId = Number(id);
   if (Number.isNaN(productId)) notFound();
@@ -13,8 +40,35 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const product = await getProduct(productId).catch(() => null);
   if (!product) notFound();
 
+  const totalStock = product.variants.reduce((sum, v) => sum + v.availableQuantity, 0);
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description,
+    category: product.categoryName,
+    image: product.imageUrls,
+    ...(product.averageRating !== null && product.reviewCount > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: product.averageRating,
+            reviewCount: product.reviewCount,
+          },
+        }
+      : {}),
+    offers: {
+      "@type": "Offer",
+      url: `${SITE_URL}/products/${product.id}`,
+      priceCurrency: "USD",
+      price: product.price,
+      availability: totalStock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    },
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-6 py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="grid gap-10 sm:grid-cols-2">
         {product.imageUrls.length > 0 ? (
           // eslint-disable-next-line @next/next/no-img-element -- see ProductCard's note

@@ -1,0 +1,7 @@
+# Real secrets — copy .env.example to .env and fill in locally, never commit it.
+.env
+.env.local
+
+# OS/editor cruft not already covered by each service's own .gitignore.
+.DS_Store
+Thumbs.db
